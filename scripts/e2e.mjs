@@ -390,7 +390,15 @@ try {
         events: await events()
       })
   check('paused banner shown', bannerOk, bannerDiag)
+  const trayPaused = await main.evaluate(`return globalThis.__copycat.trayIconState()`)
+  check(
+    'tray icon switches to paused image',
+    trayPaused.paused && trayPaused.loaded,
+    JSON.stringify(trayPaused)
+  )
   await page.evaluate(`await window.api.updateSettings({ paused: false })`)
+  const trayResumed = await main.evaluate(`return globalThis.__copycat.trayIconState()`)
+  check('tray icon switches back on resume', !trayResumed.paused, JSON.stringify(trayResumed))
   await settle()
   check(
     'resume does not record what was copied while paused',
