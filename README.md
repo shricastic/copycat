@@ -158,6 +158,28 @@ pnpm build:win   # dist/copycat-<version>-setup.exe (x64)
   installers trigger a SmartScreen warning.
 - `LSUIElement` is set in the macOS `Info.plist` so the packaged app has no Dock icon.
 
+## Releasing
+
+GitHub Actions does the release builds (`.github/workflows/`):
+
+- **CI** runs lint and typecheck on every pull request and on pushes to `master`.
+- **Release** runs when a version tag is pushed. It builds the macOS dmgs on a macOS runner
+  and the Windows installer on a Windows runner, then creates a **draft** GitHub Release with
+  them attached and the first-launch instructions from `.github/release-notes.md`.
+
+To release:
+
+```bash
+# 1. Set the version in package.json (e.g. 1.0.1) and merge that to master.
+# 2. Tag the merged commit and push the tag:
+git tag v1.0.1
+git push origin v1.0.1
+# 3. When the workflow finishes, review the draft under Releases and publish it.
+```
+
+The tag must match `package.json` (`v` + version); the workflow fails otherwise. The
+builds are unsigned (see [Packaging](#packaging)).
+
 ## Known limitations
 
 - **Text only.** Images, files and rich text formatting are not recorded (the watcher hashes
