@@ -1,74 +1,84 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import * as electron from 'electron'
+import { app } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import icon from '../../resources/icon.png?asset'
+import { IPC, type Settings, type UpdateSettingsResult } from '@shared/types'
+import { createTray, getTray } from './tray'
+import * as windowApi from './window'
+import { createPopupWindow, getPopupWindow, togglePopupAtCursor } from './window'
+import { registerIpc } from './ipc'
+import { Store, MAX_TEXT_LENGTH } from './store'
+import { ClipboardWatcher } from './clipboardWatcher'
 
-function createWindow(): void {
-  // Create the browser window.
-  const mainWindow = new BrowserWindow({
-    width: 900,
-    height: 670,
-    show: false,
-    autoHideMenuBar: true,
-    ...(process.platform === 'linux' ? { icon } : {}),
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
+// Scripted checks (scripts/e2e.mjs) run with their own profile so they neither touch real
+// history nor collide with a running instance's single-instance lock. Dev only.
+const e2e = is.dev && !!process.env['COPYCAT_E2E']
+if (e2e) app.setPath('userData', join(app.getPath('temp'), `copycat-e2e-${process.pid}`))
+
+// Only one instance may run: a second launch just opens the existing popup.
+if (!app.requestSingleInstanceLock()) {
+  app.quit()
+} else {
+  app.on('second-instance', () => togglePopupAtCursor())
+
+  // Menu bar app: no Dock icon. LSUIElement in electron-builder.yml covers the packaged app;
+  // this covers `npm run dev` and avoids a Dock bounce on launch.
+  if (process.platform === 'darwin') app.dock?.hide()
+
+  const store = new Store(join(app.getPath('userData'), 'copycat.json'))
+  store.load()
+
+  const watcher = new ClipboardWatcher({
+    intervalMs: 400,
+    maxTextLength: MAX_TEXT_LENGTH,
+    isPaused: () => store.getSettings().paused,
+    onText: (text) => store.addText(text)
+  })
+
+  // Push changes to the renderer; it never polls.
+  const send = (channel: string, payload: unknown): void => {
+    const win = getPopupWindow()
+    if (win && !win.isDestroyed()) win.webContents.send(channel, payload)
+  }
+  store.on('history', (history) => send(IPC.historyChanged, history))
+  store.on('settings', (settings) => send(IPC.settingsChanged, settings))
+
+  function updateSettings(patch: Partial<Settings>): UpdateSettingsResult {
+    return { ok: true, settings: store.updateSettings(patch) }
+  }
+
+  app.whenReady().then(() => {
+    electronApp.setAppUserModelId('com.copycat.app')
+
+    // F12 toggles DevTools in development; Cmd/Ctrl+R reload is disabled in production.
+    app.on('browser-window-created', (_, window) => optimizer.watchWindowShortcuts(window))
+
+    registerIpc({ store, watcher, updateSettings, quit: () => app.quit() })
+    createPopupWindow()
+    createTray({
+      onOpen: () => togglePopupAtCursor(),
+      onQuit: () => app.quit()
+    })
+    watcher.start()
+
+    // Test hook for scripted checks over the inspector.
+    if (e2e) {
+      ;(globalThis as Record<string, unknown>).__copycat = {
+        electron,
+        windowApi,
+        getTray,
+        store,
+        watcher
+      }
     }
   })
 
-  mainWindow.on('ready-to-show', () => {
-    mainWindow.show()
+  app.on('before-quit', () => {
+    watcher.stop()
+    if (store.getSettings().clearOnQuit) store.clearUnpinned()
+    store.flush()
   })
 
-  mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
-    return { action: 'deny' }
-  })
-
-  // HMR for renderer base on electron-vite cli.
-  // Load the remote URL for development or the local html file for production.
-  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
-  } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
-  }
+  // The popup is hidden, never closed, but keep the app alive regardless: it lives in the tray.
+  app.on('window-all-closed', () => {})
 }
-
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-// Some APIs can only be used after this event occurs.
-app.whenReady().then(() => {
-  // Set app user model id for windows
-  electronApp.setAppUserModelId('com.electron')
-
-  // Default open or close DevTools by F12 in development
-  // and ignore CommandOrControl + R in production.
-  // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
-  app.on('browser-window-created', (_, window) => {
-    optimizer.watchWindowShortcuts(window)
-  })
-
-  // IPC test
-  ipcMain.on('ping', () => console.log('pong'))
-
-  createWindow()
-
-  app.on('activate', function () {
-    // On macOS it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open.
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
-  })
-})
-
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit()
-  }
-})
-
-// In this file you can include the rest of your app's specific main process
-// code. You can also put them in separate files and require them here.

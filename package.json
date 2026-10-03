@@ -1,10 +1,9 @@
 {
   "name": "copycat",
   "version": "1.0.0",
-  "description": "An Electron application with React and TypeScript",
+  "description": "Clipboard history in your menu bar / system tray",
   "main": "./out/main/index.js",
-  "author": "example.com",
-  "homepage": "https://electron-vite.org",
+  "author": "copycat",
   "scripts": {
     "format": "prettier --write .",
     "lint": "eslint --cache .",
@@ -17,11 +16,10 @@
     "postinstall": "electron-builder install-app-deps",
     "build:unpack": "npm run build && electron-builder --dir",
     "build:win": "npm run build && electron-builder --win",
-    "build:mac": "electron-vite build && electron-builder --mac",
-    "build:linux": "electron-vite build && electron-builder --linux"
+    "build:mac": "npm run build && electron-builder --mac",
+    "icons": "node scripts/generate-icons.mjs"
   },
   "dependencies": {
-    "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0"
   },
   "devDependencies": {

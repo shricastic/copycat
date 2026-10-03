@@ -1,8 +1,7 @@
-import { ElectronAPI } from '@electron-toolkit/preload'
+import type { CopycatApi } from '../shared/types'
 
 declare global {
   interface Window {
-    electron: ElectronAPI
-    api: unknown
+    api: CopycatApi
   }
 }

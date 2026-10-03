@@ -2,11 +2,15 @@
 <html>
   <head>
     <meta charset="UTF-8" />
-    <title>Electron</title>
-    <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP -->
+    <title>Copycat</title>
+    <!--
+      Strict CSP: no remote content, no inline scripts, no eval, no network.
+      style-src 'unsafe-inline' is only for Vite's injected <style> tags during dev HMR; the
+      production build strips it (see cspForProduction in electron.vite.config.ts).
+    -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+      content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'"
     />
   </head>
 
