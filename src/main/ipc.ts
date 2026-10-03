@@ -1,4 +1,6 @@
-import { ipcMain, Menu, type IpcMainInvokeEvent } from 'electron'
+import { app, ipcMain, Menu, shell, type IpcMainInvokeEvent } from 'electron'
+import { existsSync } from 'fs'
+import { dirname } from 'path'
 import { IPC, type AppState, type Settings, type UpdateSettingsResult } from '@shared/types'
 import { isValidAccelerator } from '@shared/accelerator'
 import { getAppearance, getPopupWindow, hidePopup, setKeyboardCapture } from './window'
@@ -72,6 +74,7 @@ export function registerIpc(deps: IpcDeps): void {
     history: store.getHistory(),
     settings: store.getSettings(),
     platform: process.platform,
+    version: app.getVersion(),
     appearance: getAppearance(),
     runtime: settings.runtime()
   }))
@@ -125,5 +128,12 @@ export function registerIpc(deps: IpcDeps): void {
   })
 
   handle(IPC.hidePopup, () => hidePopup())
+  handle(IPC.showDataFile, () => {
+    // Before the first save there is no file yet; show the folder instead.
+    const file = store.getFilePath()
+    if (existsSync(file)) shell.showItemInFolder(file)
+    else void shell.openPath(dirname(file))
+  })
+
   handle(IPC.quit, () => deps.quit())
 }

@@ -20,6 +20,7 @@ const api: CopycatApi = {
   updateSettings: (patch) => ipcRenderer.invoke(IPC.updateSettings, patch),
   setShortcutRecording: (active) => ipcRenderer.invoke(IPC.setShortcutRecording, active),
   hidePopup: () => ipcRenderer.invoke(IPC.hidePopup),
+  showDataFile: () => ipcRenderer.invoke(IPC.showDataFile),
   quit: () => ipcRenderer.invoke(IPC.quit),
   onHistoryChanged: (cb) => subscribe(IPC.historyChanged, cb),
   onSettingsChanged: (cb) => subscribe(IPC.settingsChanged, cb),

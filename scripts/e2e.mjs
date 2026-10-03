@@ -627,11 +627,26 @@ try {
     const visibleInSettings = win.isVisible();
     const opened = await q("!!document.querySelector('.settings') && document.querySelector('.header-title')?.textContent");
     const shortcutLabel = await q("document.querySelector('.shortcut-field')?.textContent");
+    // Settings -> About page -> Esc back to Settings.
+    await q("document.querySelector('.nav-row').click()");
+    await new Promise(r => setTimeout(r, 150));
+    const aboutTitle = await q("document.querySelector('.header-title')?.textContent");
+    const aboutVersion = await q("document.querySelector('.about-version')?.textContent");
+    win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
+    await new Promise(r => setTimeout(r, 150));
+    const backToSettings = await q("document.querySelector('.header-title')?.textContent");
     win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
     await new Promise(r => setTimeout(r, 200));
     const back = await q("!!document.querySelector('.search') && !document.querySelector('.settings')");
-    return { visibleBefore, visibleInSettings, opened, shortcutLabel, back, visible: win.isVisible() }`)
+    return { visibleBefore, visibleInSettings, opened, shortcutLabel, aboutTitle, aboutVersion, backToSettings,
+      appVersion: h.electron.app.getVersion(), back, visible: win.isVisible() }`)
   check('Cmd/Ctrl+, opens settings', sv.opened === 'Settings', JSON.stringify(sv))
+  check(
+    'About page shows the app version',
+    sv.aboutTitle === 'About' && sv.aboutVersion === `Version ${sv.appVersion}`,
+    JSON.stringify({ title: sv.aboutTitle, version: sv.aboutVersion })
+  )
+  check('Esc on About returns to Settings', sv.backToSettings === 'Settings', sv.backToSettings)
   check(
     'shortcut shown with platform symbols',
     sv.shortcutLabel === (isMac ? '⇧⌘V' : 'Ctrl+Shift+V'),

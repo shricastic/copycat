@@ -7,6 +7,8 @@ let tray: Tray | null = null
 export interface TrayMenuHandlers {
   isPaused(): boolean
   onTogglePause(): void
+  /** Open the popup on the About page. */
+  onClickAbout(): void
   onQuit(): void
 }
 
@@ -51,6 +53,7 @@ export function createTray(handlers: TrayMenuHandlers): Tray {
           click: handlers.onTogglePause
         },
         { type: 'separator' },
+        { label: 'About Copycat', click: handlers.onClickAbout },
         { label: 'Quit Copycat', click: handlers.onQuit }
       ])
     )

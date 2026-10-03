@@ -7,11 +7,18 @@ interface Props {
   settings: Settings
   runtime: RuntimeStatus
   isMac: boolean
+  onOpenAbout(): void
   /** Applies a change; resolves to an error message if main rejected it. */
   update(patch: Partial<Settings>): Promise<string | undefined>
 }
 
-export function SettingsView({ settings, runtime, isMac, update }: Props): React.JSX.Element {
+export function SettingsView({
+  settings,
+  runtime,
+  isMac,
+  onOpenAbout,
+  update
+}: Props): React.JSX.Element {
   // Draft value for the number field; committed on blur / Enter.
   const [maxDraft, setMaxDraft] = useState(String(settings.maxHistory))
   const [error, setError] = useState('')
@@ -113,6 +120,13 @@ export function SettingsView({ settings, runtime, isMac, update }: Props): React
           {error}
         </div>
       )}
+
+      <button className="nav-row" onClick={onOpenAbout}>
+        <span>About Copycat</span>
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="m6 3 5 5-5 5" />
+        </svg>
+      </button>
     </div>
   )
 }

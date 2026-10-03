@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Appearance, ClipItem, RuntimeStatus, Settings } from '@shared/types'
 import { HistoryItem } from './components/HistoryItem'
 import { SettingsView } from './components/SettingsView'
+import { AboutView } from './components/AboutView'
 
 const api = window.api
 
@@ -12,13 +13,14 @@ function applyAppearance({ glass, accentColor }: Appearance): void {
   root.style.setProperty('--accent', accentColor)
 }
 
-type View = 'list' | 'settings'
+type View = 'list' | 'settings' | 'about'
 
 function App(): React.JSX.Element {
   const [history, setHistory] = useState<ClipItem[]>([])
   const [settings, setSettings] = useState<Settings | null>(null)
   const [runtime, setRuntime] = useState<RuntimeStatus | null>(null)
   const [isMac, setIsMac] = useState(true)
+  const [version, setVersion] = useState('')
   const [view, setView] = useState<View>('list')
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState(0)
@@ -44,15 +46,16 @@ function App(): React.JSX.Element {
       setSettings(s.settings)
       setRuntime(s.runtime)
       setIsMac(s.platform === 'darwin')
+      setVersion(s.version)
       applyAppearance(s.appearance)
     })
     const offHistory = api.onHistoryChanged(setHistory)
     const offSettings = api.onSettingsChanged(setSettings)
     // Every time the popup opens: history view, fresh search, top item selected.
-    const offShown = api.onPopupShown((appearance) => {
+    const offShown = api.onPopupShown(({ appearance, view }) => {
       applyAppearance(appearance)
       disarmHover()
-      setView('list')
+      setView(view)
       setQuery('')
       setSelected(0)
       setNow(Date.now())
@@ -122,6 +125,14 @@ function App(): React.JSX.Element {
     requestAnimationFrame(() => searchRef.current?.focus())
   }, [])
 
+  const openAbout = useCallback(() => setView('about'), [])
+
+  /** Back one level: About -> Settings -> history list. */
+  const goBack = useCallback(() => {
+    if (view === 'about') setView('settings')
+    else closeSettings()
+  }, [view, closeSettings])
+
   const updateSettings = useCallback(
     async (patch: Partial<Settings>): Promise<string | undefined> => {
       const result = await api.updateSettings(patch)
@@ -144,11 +155,11 @@ function App(): React.JSX.Element {
         return view === 'list' ? openSettings() : closeSettings()
       }
 
-      if (view === 'settings') {
-        // Esc steps back to the list first; a second Esc closes the popup.
+      if (view !== 'list') {
+        // Esc steps back one level (About -> Settings -> list); Esc on the list closes the popup.
         if (e.key === 'Escape') {
           e.preventDefault()
-          closeSettings()
+          goBack()
         }
         return
       }
@@ -193,7 +204,7 @@ function App(): React.JSX.Element {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [view, sel, visible, paste, query, openSettings, closeSettings, disarmHover])
+  }, [view, sel, visible, paste, query, openSettings, closeSettings, goBack, disarmHover])
 
   const clearAll = (): void => {
     if (!confirmClear) {
@@ -234,12 +245,16 @@ function App(): React.JSX.Element {
         </header>
       ) : (
         <header className="header">
-          <button className="back" onClick={closeSettings} aria-label="Back to history">
+          <button
+            className="back"
+            onClick={goBack}
+            aria-label={view === 'about' ? 'Back to settings' : 'Back to history'}
+          >
             <svg viewBox="0 0 16 16" aria-hidden="true">
               <path d="M10 3 5 8l5 5" />
             </svg>
           </button>
-          <h1 className="header-title">Settings</h1>
+          <h1 className="header-title">{view === 'about' ? 'About' : 'Settings'}</h1>
         </header>
       )}
 
@@ -249,32 +264,51 @@ function App(): React.JSX.Element {
         </div>
       )}
 
-      {view === 'settings' && settings && runtime ? (
-        <SettingsView settings={settings} runtime={runtime} isMac={isMac} update={updateSettings} />
-      ) : visible.length === 0 ? (
-        <div className="empty">
-          {history.length === 0
-            ? 'Text you copy will appear here.'
-            : `Nothing matches “${query.trim()}”.`}
+      {/* Page content scrolls underneath the glass credit strip pinned to its bottom. */}
+      <div className="content">
+        {view === 'about' ? (
+          <AboutView version={version} isMac={isMac} />
+        ) : view === 'settings' && settings && runtime ? (
+          <SettingsView
+            settings={settings}
+            runtime={runtime}
+            isMac={isMac}
+            onOpenAbout={openAbout}
+            update={updateSettings}
+          />
+        ) : visible.length === 0 ? (
+          <div className="empty">
+            {history.length === 0
+              ? 'Text you copy will appear here.'
+              : `Nothing matches “${query.trim()}”.`}
+          </div>
+        ) : (
+          <ul id="history-list" ref={listRef} className="list" role="listbox">
+            {visible.map((item, index) => (
+              <HistoryItem
+                key={item.id}
+                item={item}
+                index={index}
+                selected={index === sel}
+                lastPinned={index === pinnedCount - 1 && pinnedCount < visible.length}
+                now={now}
+                onHover={hoverSelect}
+                onSelect={setSelected}
+                onPaste={paste}
+                onMenu={showMenu}
+              />
+            ))}
+          </ul>
+        )}
+
+        {/* Credit on every page: frosted glass over the bottom of the scrolling content. */}
+        <div className="credit">
+          Made with <span className="credit-heart">♥</span> by{' '}
+          <a href="https://github.com/shricastic" target="_blank" rel="noreferrer">
+            Shricastic
+          </a>
         </div>
-      ) : (
-        <ul id="history-list" ref={listRef} className="list" role="listbox">
-          {visible.map((item, index) => (
-            <HistoryItem
-              key={item.id}
-              item={item}
-              index={index}
-              selected={index === sel}
-              lastPinned={index === pinnedCount - 1 && pinnedCount < visible.length}
-              now={now}
-              onHover={hoverSelect}
-              onSelect={setSelected}
-              onPaste={paste}
-              onMenu={showMenu}
-            />
-          ))}
-        </ul>
-      )}
+      </div>
 
       <footer className="footer">
         <div className="footer-group">
@@ -291,10 +325,10 @@ function App(): React.JSX.Element {
         </div>
         <div className="footer-group">
           <button
-            className={`link icon${view === 'settings' ? ' active' : ''}`}
+            className={`link icon${view !== 'list' ? ' active' : ''}`}
             onClick={view === 'list' ? openSettings : closeSettings}
             aria-label="Settings"
-            aria-pressed={view === 'settings'}
+            aria-pressed={view !== 'list'}
             title={`Settings (${isMac ? '⌘' : 'Ctrl+'},)`}
           >
             <svg viewBox="0 0 16 16" aria-hidden="true">
