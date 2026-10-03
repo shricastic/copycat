@@ -592,3 +592,116 @@ button {
     transition: none;
   }
 }
+
+a.link {
+  text-decoration: none;
+}
+
+/* Settings row that opens a sub-page. */
+.nav-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-top: 4px;
+  padding: 7px 0;
+  border: none;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.nav-row svg {
+  width: 11px;
+  height: 11px;
+  fill: none;
+  stroke: var(--text-2);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.nav-row:hover svg {
+  stroke: var(--text);
+}
+
+/* ---------- about ---------- */
+
+.about {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 20px 14px;
+  text-align: center;
+}
+
+.about-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.about-icon {
+  width: 44px;
+  height: 44px;
+  margin-bottom: 10px;
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.about-icon-clip {
+  fill: var(--accent);
+}
+
+.about-name {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.about-version {
+  margin-top: 1px;
+  color: var(--text-2);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.about-description {
+  max-width: 220px;
+  margin: 10px 0 0;
+  color: var(--text-2);
+}
+
+.about-links {
+  display: flex;
+  gap: 4px;
+  margin-top: 10px;
+}
+
+.about-credit {
+  color: var(--text-2);
+  font-size: 11px;
+}
+
+.about-heart {
+  color: var(--danger);
+}
+
+.about-credit a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--separator);
+  text-underline-offset: 2px;
+}
+
+.about-credit a:hover {
+  color: var(--text);
+  text-decoration-color: currentColor;
+}

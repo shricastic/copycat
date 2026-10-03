@@ -65,6 +65,10 @@ if (!app.requestSingleInstanceLock()) {
     createTray({
       isPaused: () => store.getSettings().paused,
       onTogglePause: () => settings.update({ paused: !store.getSettings().paused }),
+      onClickAbout: () => {
+        const tray = getTray()
+        if (tray) windowApi.showPopupFromTray(tray.getBounds(), 'about')
+      },
       onQuit: () => app.quit()
     })
     settings.init()

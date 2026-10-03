@@ -27,6 +27,9 @@ export const DEFAULT_SETTINGS: Settings = {
 
 export const MAX_HISTORY_LIMIT = 1000
 
+/** Project page, linked from Settings → About. */
+export const HOMEPAGE_URL = 'https://github.com/shricastic/copycat'
+
 /** IPC channel names. Invoke channels are request/response; events are main -> renderer pushes. */
 export const IPC = {
   // renderer -> main (invoke)
@@ -39,6 +42,7 @@ export const IPC = {
   updateSettings: 'settings:update',
   setShortcutRecording: 'shortcut:recording',
   hidePopup: 'popup:hide',
+  showDataFile: 'app:showDataFile',
   quit: 'app:quit',
   // main -> renderer (events)
   historyChanged: 'history:changed',
@@ -61,11 +65,22 @@ export interface RuntimeStatus {
   loginItemAvailable: boolean
 }
 
+/** Page the popup opens on. */
+export type PopupView = 'list' | 'about'
+
+/** Sent every time the popup is shown. */
+export interface PopupShownInfo {
+  appearance: Appearance
+  view: PopupView
+}
+
 export interface AppState {
   history: ClipItem[]
   settings: Settings
   /** process.platform of the main process ('darwin', 'win32', ...). */
   platform: string
+  /** App version from package.json. */
+  version: string
   appearance: Appearance
   runtime: RuntimeStatus
 }
@@ -91,8 +106,10 @@ export interface CopycatApi {
   /** Suspend the global shortcut while the user records a new one (so it doesn't fire). */
   setShortcutRecording(active: boolean): Promise<void>
   hidePopup(): Promise<void>
+  /** Reveal the history file in Finder / Explorer. */
+  showDataFile(): Promise<void>
   quit(): Promise<void>
   onHistoryChanged(cb: (history: ClipItem[]) => void): () => void
   onSettingsChanged(cb: (settings: Settings) => void): () => void
-  onPopupShown(cb: (appearance: Appearance) => void): () => void
+  onPopupShown(cb: (info: PopupShownInfo) => void): () => void
 }

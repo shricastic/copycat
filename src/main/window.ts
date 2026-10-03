@@ -10,7 +10,7 @@ import {
 import { join } from 'path'
 import { release } from 'os'
 import { is } from '@electron-toolkit/utils'
-import { IPC, type Appearance } from '@shared/types'
+import { IPC, type Appearance, type PopupShownInfo, type PopupView } from '@shared/types'
 
 const WIDTH = 300
 const HEIGHT = 400
@@ -199,10 +199,17 @@ export function togglePopupFromTray(trayBounds: Rectangle): void {
   showAt(positionForTray(trayBounds))
 }
 
-/** Open under/above the tray icon (tray menu "Open"); no-op if already open. */
-export function showPopupFromTray(trayBounds: Rectangle): void {
-  if (!win || win.isVisible()) return
-  showAt(positionForTray(trayBounds))
+/**
+ * Open under/above the tray icon on the given page (tray menu "Open" / "About"). If it is
+ * already open, just switch to that page.
+ */
+export function showPopupFromTray(trayBounds: Rectangle, view: PopupView = 'list'): void {
+  if (!win) return
+  if (win.isVisible()) {
+    if (view !== 'list') notifyShown(view)
+    return
+  }
+  showAt(positionForTray(trayBounds), view)
 }
 
 /** Global-shortcut handler: open centered near the cursor, or close if already open. */
@@ -215,13 +222,18 @@ export function togglePopupAtCursor(): void {
   showAt(positionNearCursor(screen.getCursorScreenPoint()))
 }
 
-function showAt(pos: Point): void {
+function showAt(pos: Point, view: PopupView = 'list'): void {
   if (!win) return
   win.setPosition(pos.x, pos.y, false)
   win.show()
   win.focus()
-  // Re-sent on every open so a changed system accent colour is picked up.
-  win.webContents.send(IPC.popupShown, getAppearance())
+  notifyShown(view)
+}
+
+/** Re-sent on every open so a changed system accent colour is picked up. */
+function notifyShown(view: PopupView): void {
+  const info: PopupShownInfo = { appearance: getAppearance(), view }
+  win?.webContents.send(IPC.popupShown, info)
 }
 
 /** Clamp a WIDTH x HEIGHT rect at (x, y) so it is fully inside `area`. */

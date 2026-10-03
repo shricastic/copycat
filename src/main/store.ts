@@ -61,6 +61,10 @@ export class Store extends EventEmitter<StoreEvents> {
 
   // ---------- reads ----------
 
+  getFilePath(): string {
+    return this.file
+  }
+
   getHistory(): ClipItem[] {
     return this.history
   }
