@@ -9,6 +9,8 @@ interface Props {
   item: ClipItem
   index: number
   selected: boolean
+  /** Last pinned row before unpinned ones: draws the divider under it. */
+  lastPinned: boolean
   now: number
   onSelect(index: number): void
   onPaste(id: string): void
@@ -25,6 +27,7 @@ export const HistoryItem = memo(function HistoryItem({
   item,
   index,
   selected,
+  lastPinned,
   now,
   onSelect,
   onPaste,
@@ -40,7 +43,7 @@ export const HistoryItem = memo(function HistoryItem({
       id={`item-${item.id}`}
       role="option"
       aria-selected={selected}
-      className={`item${selected ? ' selected' : ''}`}
+      className={`item${selected ? ' selected' : ''}${lastPinned ? ' last-pinned' : ''}`}
       // mousemove (not mouseenter) so keyboard scrolling doesn't steal the selection.
       onMouseMove={() => !selected && onSelect(index)}
       onClick={() => onPaste(item.id)}
@@ -55,11 +58,18 @@ export const HistoryItem = memo(function HistoryItem({
         <div className={`item-text${lines > 1 ? ' mono' : ''}`}>{preview}</div>
       </div>
 
-      {/* Same slot: the age at rest, a copy button on hover/selection. */}
+      {/* Same slot: the age (or a pin for pinned items) at rest, a copy button on hover. */}
       <div className="item-aside">
-        <time className="item-age" dateTime={new Date(item.createdAt).toISOString()}>
-          {compactAge(item.createdAt, now)}
-        </time>
+        {item.pinned ? (
+          <svg className="item-pin" viewBox="0 0 16 16" role="img" aria-label="Pinned">
+            <path d="M9.6 1.9 14.1 6.4a.6.6 0 0 1-.25 1L11.2 8.2 8.9 10.5l.35 2.6a.6.6 0 0 1-1 .5L2.4 7.75a.6.6 0 0 1 .5-1l2.6.35L7.8 4.8 8.6 2.15a.6.6 0 0 1 1-.25Z" />
+            <path d="M5.3 10.7 1.75 14.25" />
+          </svg>
+        ) : (
+          <time className="item-age" dateTime={new Date(item.createdAt).toISOString()}>
+            {compactAge(item.createdAt, now)}
+          </time>
+        )}
         <button
           className="item-copy"
           // The age is hidden while hovering, so the exact time lives in this tooltip.

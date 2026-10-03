@@ -18,6 +18,7 @@ const api: CopycatApi = {
   showItemMenu: (id) => ipcRenderer.invoke(IPC.showItemMenu, id),
   clearAll: () => ipcRenderer.invoke(IPC.clearAll),
   updateSettings: (patch) => ipcRenderer.invoke(IPC.updateSettings, patch),
+  setShortcutRecording: (active) => ipcRenderer.invoke(IPC.setShortcutRecording, active),
   hidePopup: () => ipcRenderer.invoke(IPC.hidePopup),
   quit: () => ipcRenderer.invoke(IPC.quit),
   onHistoryChanged: (cb) => subscribe(IPC.historyChanged, cb),

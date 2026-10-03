@@ -1,14 +1,16 @@
 import { ipcMain, Menu, type IpcMainInvokeEvent } from 'electron'
 import { IPC, type AppState, type Settings, type UpdateSettingsResult } from '@shared/types'
-import { getAppearance, getPopupWindow, hidePopup } from './window'
+import { isValidAccelerator } from '@shared/accelerator'
+import { getAppearance, getPopupWindow, hidePopup, setKeyboardCapture } from './window'
 import { isValidMaxHistory, type Store } from './store'
 import type { ClipboardWatcher } from './clipboardWatcher'
+import type { SettingsController } from './settings'
 
 export interface IpcDeps {
   store: Store
   watcher: ClipboardWatcher
-  /** Apply a validated settings patch (including side effects); may reject parts of it. */
-  updateSettings(patch: Partial<Settings>): UpdateSettingsResult
+  /** Applies validated settings patches, including OS side effects. */
+  settings: SettingsController
   quit(): void
 }
 
@@ -41,7 +43,7 @@ function validateId(v: unknown): string {
 
 const SETTINGS_VALIDATORS: { [K in keyof Settings]: (v: unknown) => boolean } = {
   maxHistory: isValidMaxHistory,
-  shortcut: (v) => typeof v === 'string' && v.length <= 100,
+  shortcut: (v) => typeof v === 'string' && isValidAccelerator(v),
   launchAtLogin: (v) => typeof v === 'boolean',
   paused: (v) => typeof v === 'boolean',
   clearOnQuit: (v) => typeof v === 'boolean'
@@ -64,13 +66,14 @@ function validateSettingsPatch(v: unknown): Partial<Settings> {
 // ---------- handlers ----------
 
 export function registerIpc(deps: IpcDeps): void {
-  const { store, watcher } = deps
+  const { store, watcher, settings } = deps
 
   handle(IPC.getState, (): AppState => ({
     history: store.getHistory(),
     settings: store.getSettings(),
     platform: process.platform,
-    appearance: getAppearance()
+    appearance: getAppearance(),
+    runtime: settings.runtime()
   }))
 
   const paste = (id: string): void => {
@@ -85,9 +88,11 @@ export function registerIpc(deps: IpcDeps): void {
   handle(IPC.showItemMenu, (id: unknown) => {
     const itemId = validateId(id)
     const win = getPopupWindow()
-    if (!win || !store.findById(itemId)) return
+    const item = store.findById(itemId)
+    if (!win || !item) return
     Menu.buildFromTemplate([
       { label: 'Copy', click: () => paste(itemId) },
+      { label: item.pinned ? 'Unpin' : 'Pin', click: () => store.togglePin(itemId) },
       { type: 'separator' },
       { label: 'Delete', click: () => store.remove(itemId) }
     ]).popup({ window: win })
@@ -99,13 +104,24 @@ export function registerIpc(deps: IpcDeps): void {
 
   handle(IPC.updateSettings, (patch: unknown): UpdateSettingsResult => {
     try {
-      return deps.updateSettings(validateSettingsPatch(patch))
+      return settings.update(validateSettingsPatch(patch))
     } catch (err) {
       if (err instanceof ValidationError) {
-        return { ok: false, settings: store.getSettings(), error: err.message }
+        return {
+          ok: false,
+          settings: store.getSettings(),
+          runtime: settings.runtime(),
+          error: err.message
+        }
       }
       throw err
     }
+  })
+
+  handle(IPC.setShortcutRecording, (active: unknown) => {
+    if (typeof active !== 'boolean') throw new ValidationError('active must be a boolean')
+    settings.setRecording(active)
+    setKeyboardCapture(active)
   })
 
   handle(IPC.hidePopup, () => hidePopup())

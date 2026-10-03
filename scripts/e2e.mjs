@@ -433,6 +433,134 @@ try {
   const afterClear = await history()
   check('clear all keeps only pinned', afterClear.length === 1 && afterClear[0].pinned)
 
+  // ================= Phase 3: shortcut, pinning, settings =================
+
+  const DEFAULT_SHORTCUT = 'CommandOrControl+Shift+V'
+  const isReg = (acc) =>
+    main.evaluate(`return globalThis.__copycat.electron.globalShortcut.isRegistered('${acc}')`)
+  const st = await page.evaluate(`return (await window.api.getState()).runtime`)
+  check(
+    'default global shortcut registered',
+    st.shortcutRegistered && (await isReg(DEFAULT_SHORTCUT)),
+    JSON.stringify(st)
+  )
+
+  const NEW_SHORTCUT = 'CommandOrControl+Alt+Shift+K'
+  const changed = await page.evaluate(
+    `return await window.api.updateSettings({ shortcut: '${NEW_SHORTCUT}' })`
+  )
+  check(
+    'shortcut can be changed',
+    changed.ok && (await isReg(NEW_SHORTCUT)) && !(await isReg(DEFAULT_SHORTCUT)),
+    JSON.stringify(changed)
+  )
+  const shiftOnly = await page.evaluate(
+    `return await window.api.updateSettings({ shortcut: 'Shift+A' })`
+  )
+  check('Shift-only shortcut rejected, old one kept', !shiftOnly.ok && (await isReg(NEW_SHORTCUT)))
+
+  await page.evaluate(`await window.api.setShortcutRecording(true)`)
+  const whileRecording = await isReg(NEW_SHORTCUT)
+  await page.evaluate(`await window.api.setShortcutRecording(false)`)
+  check(
+    'recording suspends the shortcut and restores it',
+    !whileRecording && (await isReg(NEW_SHORTCUT))
+  )
+
+  const cleared = await page.evaluate(`return await window.api.updateSettings({ shortcut: '' })`)
+  check('shortcut can be removed', cleared.ok && !(await isReg(NEW_SHORTCUT)))
+  await page.evaluate(`await window.api.updateSettings({ shortcut: '${DEFAULT_SHORTCUT}' })`)
+  check('default shortcut restored', await isReg(DEFAULT_SHORTCUT))
+
+  const login = await page.evaluate(
+    `return await window.api.updateSettings({ launchAtLogin: true })`
+  )
+  check(
+    'launch at login refused in dev (would register bare Electron)',
+    !login.ok && !login.settings.launchAtLogin && !login.runtime.loginItemAvailable,
+    login.error
+  )
+
+  // Pinning: an older item moves to the top of the list with a divider under it.
+  for (const n of [1, 2, 3]) {
+    await copy(`${tag}-pin-${n}`)
+    await settle()
+  }
+  const pinTarget = (await history()).find((i) => i.text === `${tag}-pin-1`)
+  await main.evaluate(`${M} w.togglePopupAtCursor()`)
+  await sleep(300)
+  await page.evaluate(`await window.api.togglePin(${JSON.stringify(pinTarget.id)})`)
+  await sleep(200)
+  const order = await page.evaluate(`return {
+    texts: [...document.querySelectorAll('.item .item-text')].map(e => e.textContent),
+    divider: document.querySelector('.item.last-pinned .item-text')?.textContent,
+    pinMark: !!document.querySelector('.item .item-pin')
+  }`)
+  const pinnedAll = (await history()).filter((i) => i.pinned).map((i) => i.text)
+  check(
+    'pinned items listed first',
+    order.texts.slice(0, pinnedAll.length).every((t) => pinnedAll.includes(t)) &&
+      order.texts.includes(`${tag}-pin-1`) &&
+      order.texts.indexOf(`${tag}-pin-1`) < order.texts.indexOf(`${tag}-pin-3`),
+    order.texts.slice(0, 4).join(', ')
+  )
+  check(
+    'divider after last pinned item + pin mark',
+    !!order.divider && order.pinMark,
+    order.divider
+  )
+
+  // Cmd/Ctrl+P on the selected (top unpinned) row.
+  const modifier = isMac ? 'meta' : 'control'
+  const cmdP = await main.evaluate(`${M}
+    const top = h.store.getHistory().filter(i => !i.pinned)[0];
+    // Select the first unpinned row: it sits right after the pinned ones.
+    const pinned = h.store.getHistory().filter(i => i.pinned).length;
+    for (let i = 0; i < pinned; i++) win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Down' });
+    await new Promise(r => setTimeout(r, 150));
+    win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'P', modifiers: ['${modifier}'] });
+    await new Promise(r => setTimeout(r, 200));
+    return { id: top.id, pinned: h.store.findById(top.id).pinned }`)
+  check('Cmd/Ctrl+P pins the selected item', cmdP.pinned === true)
+  await page.evaluate(`await window.api.togglePin(${JSON.stringify(cmdP.id)})`)
+
+  // Settings view via Cmd/Ctrl+, ; Esc steps back without closing.
+  const sv = await main.evaluate(`${M}
+    const q = (js) => win.webContents.executeJavaScript(js);
+    win.webContents.sendInputEvent({ type: 'keyDown', keyCode: ',', modifiers: ['${modifier}'] });
+    await new Promise(r => setTimeout(r, 200));
+    const opened = await q("!!document.querySelector('.settings') && document.querySelector('.header-title')?.textContent");
+    const shortcutLabel = await q("document.querySelector('.shortcut-field')?.textContent");
+    win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
+    await new Promise(r => setTimeout(r, 200));
+    const back = await q("!!document.querySelector('.search') && !document.querySelector('.settings')");
+    return { opened, shortcutLabel, back, visible: win.isVisible() }`)
+  check('Cmd/Ctrl+, opens settings', sv.opened === 'Settings', JSON.stringify(sv))
+  check(
+    'shortcut shown with platform symbols',
+    sv.shortcutLabel === (isMac ? '⇧⌘V' : 'Ctrl+Shift+V'),
+    sv.shortcutLabel
+  )
+  check('Esc in settings returns to list, popup stays open', sv.back && sv.visible)
+
+  // Settings toggles go through main and persist.
+  await page.evaluate(`await window.api.updateSettings({ clearOnQuit: true })`)
+  check(
+    'setting saved in store',
+    (await main.evaluate(`${H} return h.store.getSettings().clearOnQuit`)) === true
+  )
+  await page.evaluate(`await window.api.updateSettings({ clearOnQuit: false })`)
+
+  // Cmd+W / close() must hide the popup, not destroy it.
+  const closed2 = await main.evaluate(`${M}
+    win.close(); await new Promise(r => setTimeout(r, 200));
+    return { destroyed: win.isDestroyed(), visible: win.isVisible() }`)
+  check(
+    'closing the popup hides it instead of destroying it',
+    !closed2.destroyed && !closed2.visible
+  )
+  await main.evaluate(`${M} w.hidePopup()`)
+
   // Persistence: debounced atomic write.
   await copy(`${tag}-persist`)
   await settle()

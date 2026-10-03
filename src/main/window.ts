@@ -30,6 +30,9 @@ const ZOOM_MAX = 3 // ~173%
 
 let win: BrowserWindow | null = null
 let lastBlurHideAt = 0
+/** The renderer is recording a shortcut and needs every key combination. */
+let capturingKeys = false
+let quitting = false
 
 /**
  * Whether the OS draws a translucent material behind the popup. macOS: vibrancy (all
@@ -101,6 +104,13 @@ export function createPopupWindow(): BrowserWindow {
   win.setAlwaysOnTop(true, 'pop-up-menu')
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true })
 
+  // Cmd+W (default menu) would destroy the popup and it is never recreated: hide instead.
+  win.on('close', (e) => {
+    if (quitting) return
+    e.preventDefault()
+    hidePopup()
+  })
+
   win.on('blur', () => {
     // Keep the popup open while DevTools has focus during development.
     if (win?.webContents.isDevToolsOpened()) return
@@ -118,6 +128,7 @@ export function createPopupWindow(): BrowserWindow {
   // zoom-out accelerator didn't fire in this menu-less (LSUIElement) app. preventDefault also
   // stops the menu from applying the same zoom a second time. Chromium persists the level.
   win.webContents.on('before-input-event', (e, input) => {
+    if (capturingKeys) return
     if (input.type !== 'keyDown' || !(input.meta || input.control) || input.alt) return
     const wc = win!.webContents
     let level: number
@@ -141,6 +152,20 @@ export function createPopupWindow(): BrowserWindow {
   }
 
   return win
+}
+
+/** Let the window close for real (app quit). */
+export function allowPopupClose(): void {
+  quitting = true
+}
+
+/**
+ * While recording a shortcut, deliver every key combination to the page: skip zoom handling
+ * and menu accelerators (Cmd+Q, Cmd+W, ...).
+ */
+export function setKeyboardCapture(active: boolean): void {
+  capturingKeys = active
+  win?.webContents.setIgnoreMenuShortcuts(active)
 }
 
 export function getPopupWindow(): BrowserWindow | null {
@@ -171,6 +196,12 @@ export function togglePopupFromTray(trayBounds: Rectangle): void {
     lastBlurHideAt = 0
     return
   }
+  showAt(positionForTray(trayBounds))
+}
+
+/** Open under/above the tray icon (tray menu "Open"); no-op if already open. */
+export function showPopupFromTray(trayBounds: Rectangle): void {
+  if (!win || win.isVisible()) return
   showAt(positionForTray(trayBounds))
 }
 

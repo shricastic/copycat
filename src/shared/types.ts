@@ -37,6 +37,7 @@ export const IPC = {
   showItemMenu: 'item:menu',
   clearAll: 'history:clear',
   updateSettings: 'settings:update',
+  setShortcutRecording: 'shortcut:recording',
   hidePopup: 'popup:hide',
   quit: 'app:quit',
   // main -> renderer (events)
@@ -52,17 +53,28 @@ export interface Appearance {
   accentColor: string
 }
 
+/** Live state that isn't a stored setting. */
+export interface RuntimeStatus {
+  /** The global shortcut is currently registered (false if empty or taken by another app). */
+  shortcutRegistered: boolean
+  /** Launch at login can be changed (only in the packaged app; dev would register Electron). */
+  loginItemAvailable: boolean
+}
+
 export interface AppState {
   history: ClipItem[]
   settings: Settings
   /** process.platform of the main process ('darwin', 'win32', ...). */
   platform: string
   appearance: Appearance
+  runtime: RuntimeStatus
 }
 
 export interface UpdateSettingsResult {
   ok: boolean
   settings: Settings
+  runtime: RuntimeStatus
+  /** User-facing reason the change was rejected. */
   error?: string
 }
 
@@ -76,6 +88,8 @@ export interface CopycatApi {
   showItemMenu(id: string): Promise<void>
   clearAll(): Promise<void>
   updateSettings(patch: Partial<Settings>): Promise<UpdateSettingsResult>
+  /** Suspend the global shortcut while the user records a new one (so it doesn't fire). */
+  setShortcutRecording(active: boolean): Promise<void>
   hidePopup(): Promise<void>
   quit(): Promise<void>
   onHistoryChanged(cb: (history: ClipItem[]) => void): () => void
