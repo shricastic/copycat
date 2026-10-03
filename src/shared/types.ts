@@ -34,6 +34,7 @@ export const IPC = {
   pasteItem: 'item:paste',
   deleteItem: 'item:delete',
   togglePin: 'item:togglePin',
+  showItemMenu: 'item:menu',
   clearAll: 'history:clear',
   updateSettings: 'settings:update',
   hidePopup: 'popup:hide',
@@ -44,11 +45,19 @@ export const IPC = {
   popupShown: 'popup:shown'
 } as const
 
+export interface Appearance {
+  /** The OS draws a translucent material behind the window (macOS vibrancy, Windows acrylic). */
+  glass: boolean
+  /** System accent colour, #rrggbb. */
+  accentColor: string
+}
+
 export interface AppState {
   history: ClipItem[]
   settings: Settings
   /** process.platform of the main process ('darwin', 'win32', ...). */
   platform: string
+  appearance: Appearance
 }
 
 export interface UpdateSettingsResult {
@@ -63,11 +72,13 @@ export interface CopycatApi {
   pasteItem(id: string): Promise<void>
   deleteItem(id: string): Promise<void>
   togglePin(id: string): Promise<void>
+  /** Native context menu for an item (Copy, Delete). */
+  showItemMenu(id: string): Promise<void>
   clearAll(): Promise<void>
   updateSettings(patch: Partial<Settings>): Promise<UpdateSettingsResult>
   hidePopup(): Promise<void>
   quit(): Promise<void>
   onHistoryChanged(cb: (history: ClipItem[]) => void): () => void
   onSettingsChanged(cb: (settings: Settings) => void): () => void
-  onPopupShown(cb: () => void): () => void
+  onPopupShown(cb: (appearance: Appearance) => void): () => void
 }

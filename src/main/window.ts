@@ -1,10 +1,19 @@
-import { BrowserWindow, screen, shell, type Rectangle, type Point } from 'electron'
+import {
+  BrowserWindow,
+  screen,
+  shell,
+  systemPreferences,
+  type BrowserWindowConstructorOptions,
+  type Rectangle,
+  type Point
+} from 'electron'
 import { join } from 'path'
+import { release } from 'os'
 import { is } from '@electron-toolkit/utils'
-import { IPC } from '@shared/types'
+import { IPC, type Appearance } from '@shared/types'
 
-const WIDTH = 360
-const HEIGHT = 480
+const WIDTH = 300
+const HEIGHT = 400
 /** Gap between the tray icon / cursor and the popup. */
 const MARGIN = 6
 /**
@@ -16,6 +25,46 @@ const BLUR_CLICK_GRACE_MS = 300
 
 let win: BrowserWindow | null = null
 let lastBlurHideAt = 0
+
+/**
+ * Whether the OS draws a translucent material behind the popup. macOS: vibrancy (all
+ * supported versions). Windows: backgroundMaterial needs Windows 11 22H2 (build 22621).
+ * Elsewhere the renderer falls back to an opaque theme.
+ */
+const glass =
+  process.platform === 'darwin' ||
+  (process.platform === 'win32' && Number(release().split('.')[2] ?? 0) >= 22621)
+
+function materialOptions(): BrowserWindowConstructorOptions {
+  if (!glass) return {}
+  if (process.platform === 'darwin') {
+    return {
+      // The material system menu bar popovers use; follows light/dark automatically.
+      vibrancy: 'popover',
+      // Stay frosted even while another app is frontmost (default dims to grey when inactive).
+      visualEffectState: 'active',
+      backgroundColor: '#00000000'
+    }
+  }
+  // Untested here (built on macOS): verify on Windows 11 that acrylic renders behind a
+  // frameless window. On older Windows `glass` is false and none of this applies.
+  return { backgroundMaterial: 'acrylic', backgroundColor: '#00000000' }
+}
+
+/** System accent colour as #rrggbb (macOS and Windows), for the selected row. */
+function accentColor(): string {
+  try {
+    const c = systemPreferences.getAccentColor() // 'rrggbbaa'
+    if (/^[0-9a-f]{6}/i.test(c)) return `#${c.slice(0, 6)}`
+  } catch {
+    // not available on this platform
+  }
+  return '#0a84ff'
+}
+
+export function getAppearance(): Appearance {
+  return { glass, accentColor: accentColor() }
+}
 
 export function createPopupWindow(): BrowserWindow {
   win = new BrowserWindow({
@@ -31,6 +80,7 @@ export function createPopupWindow(): BrowserWindow {
     alwaysOnTop: true,
     skipTaskbar: true,
     hasShadow: true,
+    ...materialOptions(),
     // Not using type: 'panel' on macOS: Electron applies a panel-only style mask to a regular
     // NSWindow, which AppKit ignores and logs about. setVisibleOnAllWorkspaces below is what
     // lets the popup show over full-screen apps.
@@ -114,7 +164,8 @@ function showAt(pos: Point): void {
   win.setPosition(pos.x, pos.y, false)
   win.show()
   win.focus()
-  win.webContents.send(IPC.popupShown)
+  // Re-sent on every open so a changed system accent colour is picked up.
+  win.webContents.send(IPC.popupShown, getAppearance())
 }
 
 /** Clamp a WIDTH x HEIGHT rect at (x, y) so it is fully inside `area`. */

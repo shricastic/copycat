@@ -1,8 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { ClipItem, Settings } from '@shared/types'
+import type { Appearance, ClipItem, Settings } from '@shared/types'
 import { HistoryItem } from './components/HistoryItem'
 
 const api = window.api
+
+/** Glass vs opaque theme, and the system accent colour (caret, focus rings). */
+function applyAppearance({ glass, accentColor }: Appearance): void {
+  const root = document.documentElement
+  root.dataset.glass = String(glass)
+  root.style.setProperty('--accent', accentColor)
+}
 
 function App(): React.JSX.Element {
   const [history, setHistory] = useState<ClipItem[]>([])
@@ -20,11 +27,13 @@ function App(): React.JSX.Element {
     api.getState().then((s) => {
       setHistory(s.history)
       setSettings(s.settings)
+      applyAppearance(s.appearance)
     })
     const offHistory = api.onHistoryChanged(setHistory)
     const offSettings = api.onSettingsChanged(setSettings)
     // Every time the popup opens: fresh search, top item selected, timestamps updated.
-    const offShown = api.onPopupShown(() => {
+    const offShown = api.onPopupShown((appearance) => {
+      applyAppearance(appearance)
       setQuery('')
       setSelected(0)
       setNow(Date.now())
@@ -39,9 +48,9 @@ function App(): React.JSX.Element {
     }
   }, [])
 
-  // Keep relative timestamps fresh while the popup is open.
+  // Ages are shown down to the second, so tick every second while the popup is visible.
   useEffect(() => {
-    const t = setInterval(() => !document.hidden && setNow(Date.now()), 30_000)
+    const t = setInterval(() => !document.hidden && setNow(Date.now()), 1000)
     return () => clearInterval(t)
   }, [])
 
@@ -63,7 +72,7 @@ function App(): React.JSX.Element {
   // ---------- actions ----------
 
   const paste = useCallback((id: string) => api.pasteItem(id), [])
-  const remove = useCallback((id: string) => api.deleteItem(id), [])
+  const showMenu = useCallback((id: string) => api.showItemMenu(id), [])
 
   // Window-level so navigation works wherever focus is (rows aren't focusable).
   useEffect(() => {
@@ -90,11 +99,20 @@ function App(): React.JSX.Element {
           e.preventDefault()
           api.hidePopup()
           break
+        case 'Backspace': {
+          // Cmd+Backspace (Ctrl on Windows) deletes the selected item. While there is a search
+          // query it keeps its usual text-editing meaning.
+          const item = visible[sel]
+          if (!(e.metaKey || e.ctrlKey) || query || !item) return
+          e.preventDefault()
+          api.deleteItem(item.id)
+          break
+        }
       }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [sel, visible, paste])
+  }, [sel, visible, paste, query])
 
   const clearAll = (): void => {
     if (!confirmClear) {
@@ -111,12 +129,16 @@ function App(): React.JSX.Element {
   return (
     <div className="app">
       <header className="header">
+        <svg className="search-icon" viewBox="0 0 16 16" aria-hidden="true">
+          <circle cx="6.75" cy="6.75" r="4.75" />
+          <path d="M10.25 10.25 14 14" />
+        </svg>
         <input
           ref={searchRef}
           className="search"
           type="search"
-          placeholder="Search history"
-          aria-label="Search history"
+          placeholder="Search clipboard history"
+          aria-label="Search clipboard history"
           aria-controls="history-list"
           aria-activedescendant={visible[sel] ? `item-${visible[sel].id}` : undefined}
           autoFocus
@@ -129,10 +151,18 @@ function App(): React.JSX.Element {
         />
       </header>
 
-      {paused && <div className="banner">Recording paused</div>}
+      {paused && (
+        <div className="banner" role="status">
+          Paused. New copies aren&rsquo;t being saved.
+        </div>
+      )}
 
       {visible.length === 0 ? (
-        <div className="empty">{history.length === 0 ? 'Nothing copied yet' : 'No matches'}</div>
+        <div className="empty">
+          {history.length === 0
+            ? 'Text you copy will appear here.'
+            : `Nothing matches “${query.trim()}”.`}
+        </div>
       ) : (
         <ul id="history-list" ref={listRef} className="list" role="listbox">
           {visible.map((item, index) => (
@@ -144,7 +174,7 @@ function App(): React.JSX.Element {
               now={now}
               onSelect={setSelected}
               onPaste={paste}
-              onDelete={remove}
+              onMenu={showMenu}
             />
           ))}
         </ul>

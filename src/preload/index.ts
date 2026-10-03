@@ -15,13 +15,14 @@ const api: CopycatApi = {
   pasteItem: (id) => ipcRenderer.invoke(IPC.pasteItem, id),
   deleteItem: (id) => ipcRenderer.invoke(IPC.deleteItem, id),
   togglePin: (id) => ipcRenderer.invoke(IPC.togglePin, id),
+  showItemMenu: (id) => ipcRenderer.invoke(IPC.showItemMenu, id),
   clearAll: () => ipcRenderer.invoke(IPC.clearAll),
   updateSettings: (patch) => ipcRenderer.invoke(IPC.updateSettings, patch),
   hidePopup: () => ipcRenderer.invoke(IPC.hidePopup),
   quit: () => ipcRenderer.invoke(IPC.quit),
   onHistoryChanged: (cb) => subscribe(IPC.historyChanged, cb),
   onSettingsChanged: (cb) => subscribe(IPC.settingsChanged, cb),
-  onPopupShown: (cb) => subscribe(IPC.popupShown, () => cb())
+  onPopupShown: (cb) => subscribe(IPC.popupShown, cb)
 }
 
 contextBridge.exposeInMainWorld('api', api)

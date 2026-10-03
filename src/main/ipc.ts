@@ -1,6 +1,6 @@
-import { ipcMain, type IpcMainInvokeEvent } from 'electron'
+import { ipcMain, Menu, type IpcMainInvokeEvent } from 'electron'
 import { IPC, type AppState, type Settings, type UpdateSettingsResult } from '@shared/types'
-import { getPopupWindow, hidePopup } from './window'
+import { getAppearance, getPopupWindow, hidePopup } from './window'
 import { isValidMaxHistory, type Store } from './store'
 import type { ClipboardWatcher } from './clipboardWatcher'
 
@@ -69,14 +69,28 @@ export function registerIpc(deps: IpcDeps): void {
   handle(IPC.getState, (): AppState => ({
     history: store.getHistory(),
     settings: store.getSettings(),
-    platform: process.platform
+    platform: process.platform,
+    appearance: getAppearance()
   }))
 
-  handle(IPC.pasteItem, (id: unknown) => {
-    const item = store.findById(validateId(id))
+  const paste = (id: string): void => {
+    const item = store.findById(id)
     if (!item) return
     watcher.writeText(item.text)
     hidePopup()
+  }
+
+  handle(IPC.pasteItem, (id: unknown) => paste(validateId(id)))
+
+  handle(IPC.showItemMenu, (id: unknown) => {
+    const itemId = validateId(id)
+    const win = getPopupWindow()
+    if (!win || !store.findById(itemId)) return
+    Menu.buildFromTemplate([
+      { label: 'Copy', click: () => paste(itemId) },
+      { type: 'separator' },
+      { label: 'Delete', click: () => store.remove(itemId) }
+    ]).popup({ window: win })
   })
 
   handle(IPC.deleteItem, (id: unknown) => store.remove(validateId(id)))

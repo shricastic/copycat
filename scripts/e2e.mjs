@@ -339,7 +339,7 @@ try {
   await settle()
   check('paused: copy not recorded', !(await texts()).includes(`${tag}-during-pause`))
   const banner = await page.evaluate(`return document.querySelector('.banner')?.textContent`)
-  check('paused banner shown', banner === 'Recording paused')
+  check('paused banner shown', /^Paused\./.test(banner ?? ''), banner)
   await page.evaluate(`await window.api.updateSettings({ paused: false })`)
   await settle()
   check(
