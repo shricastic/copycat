@@ -33,6 +33,16 @@ mac:
   target:
     - target: dmg
       arch: [arm64, x64]
+  # No Developer ID certificate yet, so sign ad-hoc ("-"). Without any signature, the bundle
+  # keeps only the Electron binary's linker signature, which no longer matches once our files
+  # are added: macOS then calls the downloaded app "damaged" and offers no way to open it.
+  # Ad-hoc signed, it is an "unidentified developer" app that users can allow once in
+  # System Settings → Privacy & Security.
+  identity: '-'
+  # Hardened runtime is only needed for notarization (which needs a real certificate), and
+  # with ad-hoc signing it rejects Electron's pre-signed frameworks at launch. Turn it back on
+  # together with a Developer ID identity and notarization.
+  hardenedRuntime: false
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
     # Menu bar only: no Dock icon, no app menu.
