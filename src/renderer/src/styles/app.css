@@ -634,7 +634,7 @@ a.link {
   flex: 1;
   flex-direction: column;
   align-items: center;
-  padding: 0 20px 14px;
+  padding: 0 20px;
   text-align: center;
 }
 
@@ -685,23 +685,71 @@ a.link {
   margin-top: 10px;
 }
 
-.about-credit {
-  color: var(--text-2);
-  font-size: 11px;
+/* ---------- credit (every page, above the footer) ---------- */
+
+/* Wraps the page content so the credit can float over its bottom edge. */
+.content {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  --credit-height: 22px;
 }
 
-.about-heart {
+/* Scrolling pages leave room so their last row can scroll fully above the credit. */
+.content > .list,
+.content > .settings {
+  padding-bottom: calc(var(--credit-height) + 4px);
+  scroll-padding-bottom: var(--credit-height);
+}
+
+.content > .about {
+  padding-bottom: var(--credit-height);
+}
+
+.credit {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 1;
+  height: var(--credit-height);
+  /* Text sits on the bottom edge, directly on top of the footer (padding = height - line). */
+  padding: calc(var(--credit-height) - 14px) 0 0;
+  color: var(--text-2);
+  font-size: 10px;
+  line-height: 14px;
+  text-align: center;
+  /* Rows behind stay clickable; only the link takes the pointer. */
+  pointer-events: none;
+}
+
+/* The glass: blurs and tints what scrolls behind, fading in from clear at the top. */
+.credit::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--footer);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  mask-image: linear-gradient(to bottom, transparent, #000 60%);
+}
+
+.credit-heart {
   color: var(--danger);
 }
 
-.about-credit a {
+.credit a {
+  pointer-events: auto;
   color: inherit;
   text-decoration: underline;
   text-decoration-color: var(--separator);
   text-underline-offset: 2px;
 }
 
-.about-credit a:hover {
+.credit a:hover {
   color: var(--text);
   text-decoration-color: currentColor;
 }

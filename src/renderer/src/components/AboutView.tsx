@@ -30,13 +30,6 @@ export function AboutView({ version, isMac }: Props): React.JSX.Element {
           </button>
         </div>
       </div>
-
-      <div className="about-credit">
-        Made with <span className="about-heart">♥</span> by{' '}
-        <a href="https://github.com/shricastic" target="_blank" rel="noreferrer">
-          Shricastic
-        </a>
-      </div>
     </div>
   )
 }

@@ -264,40 +264,51 @@ function App(): React.JSX.Element {
         </div>
       )}
 
-      {view === 'about' ? (
-        <AboutView version={version} isMac={isMac} />
-      ) : view === 'settings' && settings && runtime ? (
-        <SettingsView
-          settings={settings}
-          runtime={runtime}
-          isMac={isMac}
-          onOpenAbout={openAbout}
-          update={updateSettings}
-        />
-      ) : visible.length === 0 ? (
-        <div className="empty">
-          {history.length === 0
-            ? 'Text you copy will appear here.'
-            : `Nothing matches “${query.trim()}”.`}
+      {/* Page content scrolls underneath the glass credit strip pinned to its bottom. */}
+      <div className="content">
+        {view === 'about' ? (
+          <AboutView version={version} isMac={isMac} />
+        ) : view === 'settings' && settings && runtime ? (
+          <SettingsView
+            settings={settings}
+            runtime={runtime}
+            isMac={isMac}
+            onOpenAbout={openAbout}
+            update={updateSettings}
+          />
+        ) : visible.length === 0 ? (
+          <div className="empty">
+            {history.length === 0
+              ? 'Text you copy will appear here.'
+              : `Nothing matches “${query.trim()}”.`}
+          </div>
+        ) : (
+          <ul id="history-list" ref={listRef} className="list" role="listbox">
+            {visible.map((item, index) => (
+              <HistoryItem
+                key={item.id}
+                item={item}
+                index={index}
+                selected={index === sel}
+                lastPinned={index === pinnedCount - 1 && pinnedCount < visible.length}
+                now={now}
+                onHover={hoverSelect}
+                onSelect={setSelected}
+                onPaste={paste}
+                onMenu={showMenu}
+              />
+            ))}
+          </ul>
+        )}
+
+        {/* Credit on every page: frosted glass over the bottom of the scrolling content. */}
+        <div className="credit">
+          Made with <span className="credit-heart">♥</span> by{' '}
+          <a href="https://github.com/shricastic" target="_blank" rel="noreferrer">
+            Shricastic
+          </a>
         </div>
-      ) : (
-        <ul id="history-list" ref={listRef} className="list" role="listbox">
-          {visible.map((item, index) => (
-            <HistoryItem
-              key={item.id}
-              item={item}
-              index={index}
-              selected={index === sel}
-              lastPinned={index === pinnedCount - 1 && pinnedCount < visible.length}
-              now={now}
-              onHover={hoverSelect}
-              onSelect={setSelected}
-              onPaste={paste}
-              onMenu={showMenu}
-            />
-          ))}
-        </ul>
-      )}
+      </div>
 
       <footer className="footer">
         <div className="footer-group">
