@@ -1,10 +1,19 @@
-import { BrowserWindow, screen, shell, type Rectangle, type Point } from 'electron'
+import {
+  BrowserWindow,
+  screen,
+  shell,
+  systemPreferences,
+  type BrowserWindowConstructorOptions,
+  type Rectangle,
+  type Point
+} from 'electron'
 import { join } from 'path'
+import { release } from 'os'
 import { is } from '@electron-toolkit/utils'
-import { IPC } from '@shared/types'
+import { IPC, type Appearance } from '@shared/types'
 
-const WIDTH = 360
-const HEIGHT = 480
+const WIDTH = 300
+const HEIGHT = 400
 /** Gap between the tray icon / cursor and the popup. */
 const MARGIN = 6
 /**
@@ -14,8 +23,56 @@ const MARGIN = 6
  */
 const BLUR_CLICK_GRACE_MS = 300
 
+/** Zoom levels (Chromium scale: factor = 1.2 ^ level). 0.5 steps are ~10% each. */
+const ZOOM_STEP = 0.5
+const ZOOM_MIN = -2 // ~69%
+const ZOOM_MAX = 3 // ~173%
+
 let win: BrowserWindow | null = null
 let lastBlurHideAt = 0
+/** The renderer is recording a shortcut and needs every key combination. */
+let capturingKeys = false
+let quitting = false
+
+/**
+ * Whether the OS draws a translucent material behind the popup. macOS: vibrancy (all
+ * supported versions). Windows: backgroundMaterial needs Windows 11 22H2 (build 22621).
+ * Elsewhere the renderer falls back to an opaque theme.
+ */
+const glass =
+  process.platform === 'darwin' ||
+  (process.platform === 'win32' && Number(release().split('.')[2] ?? 0) >= 22621)
+
+function materialOptions(): BrowserWindowConstructorOptions {
+  if (!glass) return {}
+  if (process.platform === 'darwin') {
+    return {
+      // The material system menu bar popovers use; follows light/dark automatically.
+      vibrancy: 'popover',
+      // Stay frosted even while another app is frontmost (default dims to grey when inactive).
+      visualEffectState: 'active',
+      backgroundColor: '#00000000'
+    }
+  }
+  // Untested here (built on macOS): verify on Windows 11 that acrylic renders behind a
+  // frameless window. On older Windows `glass` is false and none of this applies.
+  return { backgroundMaterial: 'acrylic', backgroundColor: '#00000000' }
+}
+
+/** System accent colour as #rrggbb (macOS and Windows), for the selected row. */
+function accentColor(): string {
+  try {
+    const c = systemPreferences.getAccentColor() // 'rrggbbaa'
+    if (/^[0-9a-f]{6}/i.test(c)) return `#${c.slice(0, 6)}`
+  } catch {
+    // not available on this platform
+  }
+  return '#0a84ff'
+}
+
+export function getAppearance(): Appearance {
+  return { glass, accentColor: accentColor() }
+}
 
 export function createPopupWindow(): BrowserWindow {
   win = new BrowserWindow({
@@ -31,6 +88,7 @@ export function createPopupWindow(): BrowserWindow {
     alwaysOnTop: true,
     skipTaskbar: true,
     hasShadow: true,
+    ...materialOptions(),
     // Not using type: 'panel' on macOS: Electron applies a panel-only style mask to a regular
     // NSWindow, which AppKit ignores and logs about. setVisibleOnAllWorkspaces below is what
     // lets the popup show over full-screen apps.
@@ -46,6 +104,13 @@ export function createPopupWindow(): BrowserWindow {
   win.setAlwaysOnTop(true, 'pop-up-menu')
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true })
 
+  // Cmd+W (default menu) would destroy the popup and it is never recreated: hide instead.
+  win.on('close', (e) => {
+    if (quitting) return
+    e.preventDefault()
+    hidePopup()
+  })
+
   win.on('blur', () => {
     // Keep the popup open while DevTools has focus during development.
     if (win?.webContents.isDevToolsOpened()) return
@@ -59,6 +124,27 @@ export function createPopupWindow(): BrowserWindow {
   })
   win.webContents.on('will-navigate', (e) => e.preventDefault())
 
+  // Zoom: Cmd/Ctrl + / - / 0. Handled here rather than via Electron's default menu, whose
+  // zoom-out accelerator didn't fire in this menu-less (LSUIElement) app. preventDefault also
+  // stops the menu from applying the same zoom a second time. Chromium persists the level.
+  win.webContents.on('before-input-event', (e, input) => {
+    if (capturingKeys) return
+    if (input.type !== 'keyDown' || !(input.meta || input.control) || input.alt) return
+    const wc = win!.webContents
+    let level: number
+    if (input.key === '=' || input.key === '+' || input.code === 'NumpadAdd') {
+      level = wc.getZoomLevel() + ZOOM_STEP
+    } else if (input.key === '-' || input.key === '_' || input.code === 'NumpadSubtract') {
+      level = wc.getZoomLevel() - ZOOM_STEP
+    } else if (input.key === '0' || input.code === 'Numpad0') {
+      level = 0
+    } else {
+      return
+    }
+    e.preventDefault()
+    wc.setZoomLevel(Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, level)))
+  })
+
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     win.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
@@ -66,6 +152,20 @@ export function createPopupWindow(): BrowserWindow {
   }
 
   return win
+}
+
+/** Let the window close for real (app quit). */
+export function allowPopupClose(): void {
+  quitting = true
+}
+
+/**
+ * While recording a shortcut, deliver every key combination to the page: skip zoom handling
+ * and menu accelerators (Cmd+Q, Cmd+W, ...).
+ */
+export function setKeyboardCapture(active: boolean): void {
+  capturingKeys = active
+  win?.webContents.setIgnoreMenuShortcuts(active)
 }
 
 export function getPopupWindow(): BrowserWindow | null {
@@ -99,6 +199,12 @@ export function togglePopupFromTray(trayBounds: Rectangle): void {
   showAt(positionForTray(trayBounds))
 }
 
+/** Open under/above the tray icon (tray menu "Open"); no-op if already open. */
+export function showPopupFromTray(trayBounds: Rectangle): void {
+  if (!win || win.isVisible()) return
+  showAt(positionForTray(trayBounds))
+}
+
 /** Global-shortcut handler: open centered near the cursor, or close if already open. */
 export function togglePopupAtCursor(): void {
   if (!win) return
@@ -114,7 +220,8 @@ function showAt(pos: Point): void {
   win.setPosition(pos.x, pos.y, false)
   win.show()
   win.focus()
-  win.webContents.send(IPC.popupShown)
+  // Re-sent on every open so a changed system accent colour is picked up.
+  win.webContents.send(IPC.popupShown, getAppearance())
 }
 
 /** Clamp a WIDTH x HEIGHT rect at (x, y) so it is fully inside `area`. */
@@ -146,8 +253,8 @@ function positionForTray(tray: Rectangle): Point {
   let y: number
 
   if (tray.y + tray.height <= wa.y + 1) {
-    // Menu bar / taskbar at the top: open below it.
-    y = wa.y + MARGIN
+    // Menu bar / taskbar at the top: open flush below it, like native menu bar menus.
+    y = wa.y
   } else if (tray.y >= wa.y + wa.height - 1) {
     // Taskbar at the bottom: open above it.
     y = wa.y + wa.height - HEIGHT - MARGIN

@@ -17,7 +17,8 @@
     "build:unpack": "npm run build && electron-builder --dir",
     "build:win": "npm run build && electron-builder --win",
     "build:mac": "npm run build && electron-builder --mac",
-    "icons": "node scripts/generate-icons.mjs"
+    "icons": "node scripts/generate-icons.mjs",
+    "e2e": "node scripts/e2e.mjs"
   },
   "dependencies": {
     "@electron-toolkit/utils": "^4.0.0"

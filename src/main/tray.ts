@@ -1,11 +1,12 @@
 import { Tray, Menu, nativeImage, app } from 'electron'
 import { join } from 'path'
-import { togglePopupFromTray } from './window'
+import { showPopupFromTray, togglePopupFromTray } from './window'
 
 let tray: Tray | null = null
 
 export interface TrayMenuHandlers {
-  onOpen(): void
+  isPaused(): boolean
+  onTogglePause(): void
   onQuit(): void
 }
 
@@ -23,15 +24,21 @@ export function createTray(handlers: TrayMenuHandlers): Tray {
   if (process.platform === 'darwin') image.setTemplateImage(true)
 
   tray = new Tray(image)
-  tray.setToolTip('Copycat')
+  updateTrayStatus(handlers.isPaused())
   // Deliberately no tray.setContextMenu(): on macOS that would hijack left-click.
-  // The context menu is shown manually on right-click instead.
+  // The context menu is built fresh on each right-click so it reflects current state.
 
   tray.on('click', () => togglePopupFromTray(tray!.getBounds()))
   tray.on('right-click', () => {
     tray!.popUpContextMenu(
       Menu.buildFromTemplate([
-        { label: 'Open Copycat', click: handlers.onOpen },
+        { label: 'Open Copycat', click: () => showPopupFromTray(tray!.getBounds()) },
+        {
+          label: 'Pause recording',
+          type: 'checkbox',
+          checked: handlers.isPaused(),
+          click: handlers.onTogglePause
+        },
         { type: 'separator' },
         { label: 'Quit Copycat', click: handlers.onQuit }
       ])
@@ -39,6 +46,11 @@ export function createTray(handlers: TrayMenuHandlers): Tray {
   })
 
   return tray
+}
+
+/** Reflect the paused state in the tooltip (the icon itself stays the same). */
+export function updateTrayStatus(paused: boolean): void {
+  tray?.setToolTip(paused ? 'Copycat (recording paused)' : 'Copycat')
 }
 
 export function getTray(): Tray | null {

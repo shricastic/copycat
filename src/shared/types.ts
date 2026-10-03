@@ -34,8 +34,10 @@ export const IPC = {
   pasteItem: 'item:paste',
   deleteItem: 'item:delete',
   togglePin: 'item:togglePin',
+  showItemMenu: 'item:menu',
   clearAll: 'history:clear',
   updateSettings: 'settings:update',
+  setShortcutRecording: 'shortcut:recording',
   hidePopup: 'popup:hide',
   quit: 'app:quit',
   // main -> renderer (events)
@@ -44,16 +46,35 @@ export const IPC = {
   popupShown: 'popup:shown'
 } as const
 
+export interface Appearance {
+  /** The OS draws a translucent material behind the window (macOS vibrancy, Windows acrylic). */
+  glass: boolean
+  /** System accent colour, #rrggbb. */
+  accentColor: string
+}
+
+/** Live state that isn't a stored setting. */
+export interface RuntimeStatus {
+  /** The global shortcut is currently registered (false if empty or taken by another app). */
+  shortcutRegistered: boolean
+  /** Launch at login can be changed (only in the packaged app; dev would register Electron). */
+  loginItemAvailable: boolean
+}
+
 export interface AppState {
   history: ClipItem[]
   settings: Settings
   /** process.platform of the main process ('darwin', 'win32', ...). */
   platform: string
+  appearance: Appearance
+  runtime: RuntimeStatus
 }
 
 export interface UpdateSettingsResult {
   ok: boolean
   settings: Settings
+  runtime: RuntimeStatus
+  /** User-facing reason the change was rejected. */
   error?: string
 }
 
@@ -63,11 +84,15 @@ export interface CopycatApi {
   pasteItem(id: string): Promise<void>
   deleteItem(id: string): Promise<void>
   togglePin(id: string): Promise<void>
+  /** Native context menu for an item (Copy, Delete). */
+  showItemMenu(id: string): Promise<void>
   clearAll(): Promise<void>
   updateSettings(patch: Partial<Settings>): Promise<UpdateSettingsResult>
+  /** Suspend the global shortcut while the user records a new one (so it doesn't fire). */
+  setShortcutRecording(active: boolean): Promise<void>
   hidePopup(): Promise<void>
   quit(): Promise<void>
   onHistoryChanged(cb: (history: ClipItem[]) => void): () => void
   onSettingsChanged(cb: (settings: Settings) => void): () => void
-  onPopupShown(cb: () => void): () => void
+  onPopupShown(cb: (appearance: Appearance) => void): () => void
 }
