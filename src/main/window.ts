@@ -31,8 +31,9 @@ export function createPopupWindow(): BrowserWindow {
     alwaysOnTop: true,
     skipTaskbar: true,
     hasShadow: true,
-    // 'panel' on macOS lets the popup appear over full-screen apps without activating a Dock icon.
-    ...(process.platform === 'darwin' ? { type: 'panel' } : {}),
+    // Not using type: 'panel' on macOS: Electron applies a panel-only style mask to a regular
+    // NSWindow, which AppKit ignores and logs about. setVisibleOnAllWorkspaces below is what
+    // lets the popup show over full-screen apps.
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,

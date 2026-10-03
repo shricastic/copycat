@@ -105,8 +105,12 @@ try {
   const page = await connect(pageTarget.webSocketDebuggerUrl, (msg) => {
     if (msg.method === 'Log.entryAdded') rendererLogs.push(msg.params.entry)
     if (msg.method === 'Runtime.consoleAPICalled' && ['error', 'warning'].includes(msg.params.type))
-      rendererLogs.push({ level: msg.params.type, text: msg.params.args.map((a) => a.value).join(' ') })
-    if (msg.method === 'Runtime.exceptionThrown') rendererLogs.push({ level: 'exception', text: msg.params.exceptionDetails.text })
+      rendererLogs.push({
+        level: msg.params.type,
+        text: msg.params.args.map((a) => a.value).join(' ')
+      })
+    if (msg.method === 'Runtime.exceptionThrown')
+      rendererLogs.push({ level: 'exception', text: msg.params.exceptionDetails.text })
   })
   await page.send('Log.enable')
   await page.send('Runtime.enable')
@@ -118,15 +122,30 @@ try {
   const iso = await page.evaluate(
     `return { require: typeof require, process: typeof process, api: Object.keys(window.api ?? {}).sort() }`
   )
-  check('renderer has no require/process', iso.require === 'undefined' && iso.process === 'undefined')
-  check('window.api exposed', iso.api.includes('getState') && iso.api.includes('quit'), iso.api.join(','))
+  check(
+    'renderer has no require/process',
+    iso.require === 'undefined' && iso.process === 'undefined'
+  )
+  check(
+    'window.api exposed',
+    iso.api.includes('getState') && iso.api.includes('quit'),
+    iso.api.join(',')
+  )
 
   // ---- tray + initial state
   const init = await main.evaluate(`${M} return {
     visible: win.isVisible(), tray: h.getTray().getBounds(),
     display: screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea }`)
   check('popup hidden at start', init.visible === false)
-  check('tray bounds non-empty', init.tray.width > 0 && init.tray.height > 0, JSON.stringify(init.tray))
+  if (process.platform === 'darwin') {
+    const dock = await main.evaluate(`return globalThis.__copycat.electron.app.dock.isVisible()`)
+    check('no Dock icon', dock === false)
+  }
+  check(
+    'tray bounds non-empty',
+    init.tray.width > 0 && init.tray.height > 0,
+    JSON.stringify(init.tray)
+  )
 
   // ---- open from tray
   const open = await main.evaluate(`${M}
@@ -139,16 +158,33 @@ try {
   check('popup is focused', open.focused)
   const { b, t, wa } = open
   const inside =
-    b.x >= wa.x && b.y >= wa.y && b.x + b.width <= wa.x + wa.width && b.y + b.height <= wa.y + wa.height
-  check('popup inside work area', inside, `popup ${JSON.stringify(b)} workArea ${JSON.stringify(wa)}`)
+    b.x >= wa.x &&
+    b.y >= wa.y &&
+    b.x + b.width <= wa.x + wa.width &&
+    b.y + b.height <= wa.y + wa.height
+  check(
+    'popup inside work area',
+    inside,
+    `popup ${JSON.stringify(b)} workArea ${JSON.stringify(wa)}`
+  )
   if (process.platform === 'darwin') {
-    check('popup is below the menu bar icon', b.y >= t.y + t.height, `popup.y=${b.y} tray.bottom=${t.y + t.height}`)
+    check(
+      'popup is below the menu bar icon',
+      b.y >= t.y + t.height,
+      `popup.y=${b.y} tray.bottom=${t.y + t.height}`
+    )
     const dx = Math.abs(b.x + b.width / 2 - (t.x + t.width / 2))
-    check('popup horizontally under icon (or clamped)', dx < 1 || b.x + b.width === wa.x + wa.width, `dx=${dx}`)
+    check(
+      'popup horizontally under icon (or clamped)',
+      dx < 1 || b.x + b.width === wa.x + wa.width,
+      `dx=${dx}`
+    )
   }
 
   // ---- second click closes
-  const closed = await main.evaluate(`${M} w.togglePopupFromTray(h.getTray().getBounds()); return win.isVisible()`)
+  const closed = await main.evaluate(
+    `${M} w.togglePopupFromTray(h.getTray().getBounds()); return win.isVisible()`
+  )
   check('tray click while open closes it', closed === false)
 
   // ---- blur-then-click race: the click that caused the blur must not reopen
@@ -185,7 +221,12 @@ try {
   const displays = await main.evaluate(`${M} return screen.getAllDisplays().map(d => d.workArea)`)
   console.log(`info  displays: ${JSON.stringify(displays)}`)
 
-  const bad = rendererLogs.filter((l) => /Content Security Policy|Refused/i.test(l.text) || l.level === 'exception' || l.level === 'error')
+  const bad = rendererLogs.filter(
+    (l) =>
+      /Content Security Policy|Refused/i.test(l.text) ||
+      l.level === 'exception' ||
+      l.level === 'error'
+  )
   check('no renderer errors / CSP violations', bad.length === 0, bad.map((l) => l.text).join(' | '))
   const warn = rendererLogs.filter((l) => !bad.includes(l))
   for (const l of warn) console.log(`info  renderer ${l.level}: ${l.text}`)

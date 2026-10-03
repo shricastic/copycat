@@ -5,8 +5,8 @@
     <title>Copycat</title>
     <!--
       Strict CSP: no remote content, no inline scripts, no eval, no network.
-      style-src needs 'unsafe-inline' only because Vite injects <style> tags during dev HMR;
-      the production build emits a .css file.
+      style-src 'unsafe-inline' is only for Vite's injected <style> tags during dev HMR; the
+      production build strips it (see cspForProduction in electron.vite.config.ts).
     -->
     <meta
       http-equiv="Content-Security-Policy"
