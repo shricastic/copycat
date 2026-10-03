@@ -47,7 +47,8 @@ export const IPC = {
 export interface AppState {
   history: ClipItem[]
   settings: Settings
-  platform: NodeJS.Platform | string
+  /** process.platform of the main process ('darwin', 'win32', ...). */
+  platform: string
 }
 
 export interface UpdateSettingsResult {

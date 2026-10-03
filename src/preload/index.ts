@@ -1,22 +1,27 @@
-import { contextBridge } from 'electron'
-import { electronAPI } from '@electron-toolkit/preload'
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
+import { IPC, type CopycatApi } from '@shared/types'
 
-// Custom APIs for renderer
-const api = {}
+// Runs sandboxed: only `electron` may be required here, everything else is bundled.
+// Expose narrow, named functions; never the raw ipcRenderer.
 
-// Use `contextBridge` APIs to expose Electron APIs to
-// renderer only if context isolation is enabled, otherwise
-// just add to the DOM global.
-if (process.contextIsolated) {
-  try {
-    contextBridge.exposeInMainWorld('electron', electronAPI)
-    contextBridge.exposeInMainWorld('api', api)
-  } catch (error) {
-    console.error(error)
-  }
-} else {
-  // @ts-ignore (define in dts)
-  window.electron = electronAPI
-  // @ts-ignore (define in dts)
-  window.api = api
+function subscribe<T>(channel: string, cb: (payload: T) => void): () => void {
+  const listener = (_e: IpcRendererEvent, payload: T): void => cb(payload)
+  ipcRenderer.on(channel, listener)
+  return () => ipcRenderer.removeListener(channel, listener)
 }
+
+const api: CopycatApi = {
+  getState: () => ipcRenderer.invoke(IPC.getState),
+  pasteItem: (id) => ipcRenderer.invoke(IPC.pasteItem, id),
+  deleteItem: (id) => ipcRenderer.invoke(IPC.deleteItem, id),
+  togglePin: (id) => ipcRenderer.invoke(IPC.togglePin, id),
+  clearAll: () => ipcRenderer.invoke(IPC.clearAll),
+  updateSettings: (patch) => ipcRenderer.invoke(IPC.updateSettings, patch),
+  hidePopup: () => ipcRenderer.invoke(IPC.hidePopup),
+  quit: () => ipcRenderer.invoke(IPC.quit),
+  onHistoryChanged: (cb) => subscribe(IPC.historyChanged, cb),
+  onSettingsChanged: (cb) => subscribe(IPC.settingsChanged, cb),
+  onPopupShown: (cb) => subscribe(IPC.popupShown, () => cb())
+}
+
+contextBridge.exposeInMainWorld('api', api)

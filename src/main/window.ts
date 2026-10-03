@@ -1,0 +1,175 @@
+import { BrowserWindow, screen, shell, type Rectangle, type Point } from 'electron'
+import { join } from 'path'
+import { is } from '@electron-toolkit/utils'
+import { IPC } from '@shared/types'
+
+const WIDTH = 360
+const HEIGHT = 480
+/** Gap between the tray icon / cursor and the popup. */
+const MARGIN = 6
+/**
+ * Clicking the tray icon while the popup is open first blurs the popup (which hides it)
+ * and then delivers the tray click. A click that lands within this window after a blur-hide
+ * is treated as "close" rather than "reopen".
+ */
+const BLUR_CLICK_GRACE_MS = 300
+
+let win: BrowserWindow | null = null
+let lastBlurHideAt = 0
+
+export function createPopupWindow(): BrowserWindow {
+  win = new BrowserWindow({
+    width: WIDTH,
+    height: HEIGHT,
+    show: false,
+    frame: false,
+    resizable: false,
+    movable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    hasShadow: true,
+    // 'panel' on macOS lets the popup appear over full-screen apps without activating a Dock icon.
+    ...(process.platform === 'darwin' ? { type: 'panel' } : {}),
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      spellcheck: false
+    }
+  })
+
+  win.setAlwaysOnTop(true, 'pop-up-menu')
+  win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true })
+
+  win.on('blur', () => {
+    // Keep the popup open while DevTools has focus during development.
+    if (win?.webContents.isDevToolsOpened()) return
+    hidePopup(true)
+  })
+
+  // Never let the renderer open windows or navigate away.
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('https://')) shell.openExternal(url)
+    return { action: 'deny' }
+  })
+  win.webContents.on('will-navigate', (e) => e.preventDefault())
+
+  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+    win.loadURL(process.env['ELECTRON_RENDERER_URL'])
+  } else {
+    win.loadFile(join(__dirname, '../renderer/index.html'))
+  }
+
+  return win
+}
+
+export function getPopupWindow(): BrowserWindow | null {
+  return win
+}
+
+export function isPopupVisible(): boolean {
+  return !!win && win.isVisible()
+}
+
+export function hidePopup(fromBlur = false): void {
+  if (!win || !win.isVisible()) return
+  if (fromBlur) lastBlurHideAt = Date.now()
+  win.hide()
+  // On Windows, hiding a focused window does not return focus to the previous app on its own.
+  if (process.platform === 'win32') win.blur()
+}
+
+/** Tray-click handler: open under/above the tray icon, or close if already open. */
+export function togglePopupFromTray(trayBounds: Rectangle): void {
+  if (!win) return
+  if (win.isVisible()) {
+    hidePopup()
+    return
+  }
+  if (Date.now() - lastBlurHideAt < BLUR_CLICK_GRACE_MS) {
+    // The click that caused the blur was this tray click: the user wanted to close it.
+    lastBlurHideAt = 0
+    return
+  }
+  showAt(positionForTray(trayBounds))
+}
+
+/** Global-shortcut handler: open centered near the cursor, or close if already open. */
+export function togglePopupAtCursor(): void {
+  if (!win) return
+  if (win.isVisible()) {
+    hidePopup()
+    return
+  }
+  showAt(positionNearCursor(screen.getCursorScreenPoint()))
+}
+
+function showAt(pos: Point): void {
+  if (!win) return
+  win.setPosition(pos.x, pos.y, false)
+  win.show()
+  win.focus()
+  win.webContents.send(IPC.popupShown)
+}
+
+/** Clamp a WIDTH x HEIGHT rect at (x, y) so it is fully inside `area`. */
+function clampToArea(x: number, y: number, area: Rectangle): Point {
+  return {
+    x: Math.round(Math.min(Math.max(x, area.x), area.x + area.width - WIDTH)),
+    y: Math.round(Math.min(Math.max(y, area.y), area.y + area.height - HEIGHT))
+  }
+}
+
+/**
+ * Place the popup next to the tray icon on whichever edge of the screen the tray lives:
+ * below it for a top menu bar (macOS), above it for a bottom taskbar (Windows default),
+ * and beside it for left/right taskbars. Always clamped to the work area of the display
+ * that contains the icon, so it stays on screen on multi-monitor setups.
+ */
+function positionForTray(tray: Rectangle): Point {
+  // Some environments report empty tray bounds (e.g. icon in the Windows overflow flyout,
+  // or Linux). Fall back to the cursor, which is where the user just clicked.
+  if (tray.width === 0 || tray.height === 0) {
+    return positionNearCursor(screen.getCursorScreenPoint())
+  }
+
+  const center = { x: tray.x + tray.width / 2, y: tray.y + tray.height / 2 }
+  const display = screen.getDisplayNearestPoint(center)
+  const wa = display.workArea
+
+  let x = center.x - WIDTH / 2
+  let y: number
+
+  if (tray.y + tray.height <= wa.y + 1) {
+    // Menu bar / taskbar at the top: open below it.
+    y = wa.y + MARGIN
+  } else if (tray.y >= wa.y + wa.height - 1) {
+    // Taskbar at the bottom: open above it.
+    y = wa.y + wa.height - HEIGHT - MARGIN
+  } else if (tray.x + tray.width <= wa.x + 1) {
+    // Taskbar on the left.
+    x = wa.x + MARGIN
+    y = center.y - HEIGHT / 2
+  } else if (tray.x >= wa.x + wa.width - 1) {
+    // Taskbar on the right.
+    x = wa.x + wa.width - WIDTH - MARGIN
+    y = center.y - HEIGHT / 2
+  } else {
+    // Tray rect is inside the work area (auto-hide taskbar, unusual setups):
+    // pick the side with more room.
+    const below = wa.y + wa.height - (tray.y + tray.height)
+    const above = tray.y - wa.y
+    y = below >= above ? tray.y + tray.height + MARGIN : tray.y - HEIGHT - MARGIN
+  }
+
+  return clampToArea(x, y, wa)
+}
+
+function positionNearCursor(cursor: Point): Point {
+  const wa = screen.getDisplayNearestPoint(cursor).workArea
+  return clampToArea(cursor.x - WIDTH / 2, cursor.y - HEIGHT / 3, wa)
+}
