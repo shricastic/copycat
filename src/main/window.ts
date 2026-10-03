@@ -23,6 +23,11 @@ const MARGIN = 6
  */
 const BLUR_CLICK_GRACE_MS = 300
 
+/** Zoom levels (Chromium scale: factor = 1.2 ^ level). 0.5 steps are ~10% each. */
+const ZOOM_STEP = 0.5
+const ZOOM_MIN = -2 // ~69%
+const ZOOM_MAX = 3 // ~173%
+
 let win: BrowserWindow | null = null
 let lastBlurHideAt = 0
 
@@ -108,6 +113,26 @@ export function createPopupWindow(): BrowserWindow {
     return { action: 'deny' }
   })
   win.webContents.on('will-navigate', (e) => e.preventDefault())
+
+  // Zoom: Cmd/Ctrl + / - / 0. Handled here rather than via Electron's default menu, whose
+  // zoom-out accelerator didn't fire in this menu-less (LSUIElement) app. preventDefault also
+  // stops the menu from applying the same zoom a second time. Chromium persists the level.
+  win.webContents.on('before-input-event', (e, input) => {
+    if (input.type !== 'keyDown' || !(input.meta || input.control) || input.alt) return
+    const wc = win!.webContents
+    let level: number
+    if (input.key === '=' || input.key === '+' || input.code === 'NumpadAdd') {
+      level = wc.getZoomLevel() + ZOOM_STEP
+    } else if (input.key === '-' || input.key === '_' || input.code === 'NumpadSubtract') {
+      level = wc.getZoomLevel() - ZOOM_STEP
+    } else if (input.key === '0' || input.code === 'Numpad0') {
+      level = 0
+    } else {
+      return
+    }
+    e.preventDefault()
+    wc.setZoomLevel(Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, level)))
+  })
 
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     win.loadURL(process.env['ELECTRON_RENDERER_URL'])
@@ -197,8 +222,8 @@ function positionForTray(tray: Rectangle): Point {
   let y: number
 
   if (tray.y + tray.height <= wa.y + 1) {
-    // Menu bar / taskbar at the top: open below it.
-    y = wa.y + MARGIN
+    // Menu bar / taskbar at the top: open flush below it, like native menu bar menus.
+    y = wa.y
   } else if (tray.y >= wa.y + wa.height - 1) {
     // Taskbar at the bottom: open above it.
     y = wa.y + wa.height - HEIGHT - MARGIN
