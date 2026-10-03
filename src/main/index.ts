@@ -2,10 +2,13 @@ import * as electron from 'electron'
 import { app } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import { IPC, type Settings, type UpdateSettingsResult } from '@shared/types'
 import { createTray, getTray } from './tray'
 import * as windowApi from './window'
-import { createPopupWindow, togglePopupAtCursor } from './window'
+import { createPopupWindow, getPopupWindow, togglePopupAtCursor } from './window'
 import { registerIpc } from './ipc'
+import { Store, MAX_TEXT_LENGTH } from './store'
+import { ClipboardWatcher } from './clipboardWatcher'
 
 // Scripted checks (scripts/e2e.mjs) run with their own profile so they neither touch real
 // history nor collide with a running instance's single-instance lock. Dev only.
@@ -22,21 +25,58 @@ if (!app.requestSingleInstanceLock()) {
   // this covers `npm run dev` and avoids a Dock bounce on launch.
   if (process.platform === 'darwin') app.dock?.hide()
 
+  const store = new Store(join(app.getPath('userData'), 'copycat.json'))
+  store.load()
+
+  const watcher = new ClipboardWatcher({
+    intervalMs: 400,
+    maxTextLength: MAX_TEXT_LENGTH,
+    isPaused: () => store.getSettings().paused,
+    onText: (text) => store.addText(text)
+  })
+
+  // Push changes to the renderer; it never polls.
+  const send = (channel: string, payload: unknown): void => {
+    const win = getPopupWindow()
+    if (win && !win.isDestroyed()) win.webContents.send(channel, payload)
+  }
+  store.on('history', (history) => send(IPC.historyChanged, history))
+  store.on('settings', (settings) => send(IPC.settingsChanged, settings))
+
+  function updateSettings(patch: Partial<Settings>): UpdateSettingsResult {
+    return { ok: true, settings: store.updateSettings(patch) }
+  }
+
   app.whenReady().then(() => {
     electronApp.setAppUserModelId('com.copycat.app')
 
     // F12 toggles DevTools in development; Cmd/Ctrl+R reload is disabled in production.
     app.on('browser-window-created', (_, window) => optimizer.watchWindowShortcuts(window))
 
-    registerIpc({ quit: () => app.quit() })
+    registerIpc({ store, watcher, updateSettings, quit: () => app.quit() })
     createPopupWindow()
     createTray({
       onOpen: () => togglePopupAtCursor(),
       onQuit: () => app.quit()
     })
+    watcher.start()
 
     // Test hook for scripted checks over the inspector.
-    if (e2e) (globalThis as Record<string, unknown>).__copycat = { electron, windowApi, getTray }
+    if (e2e) {
+      ;(globalThis as Record<string, unknown>).__copycat = {
+        electron,
+        windowApi,
+        getTray,
+        store,
+        watcher
+      }
+    }
+  })
+
+  app.on('before-quit', () => {
+    watcher.stop()
+    if (store.getSettings().clearOnQuit) store.clearUnpinned()
+    store.flush()
   })
 
   // The popup is hidden, never closed, but keep the app alive regardless: it lives in the tray.
