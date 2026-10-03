@@ -17,7 +17,8 @@ macOS is the primary platform. Windows is supported in the code but has not been
 - Pin items to keep them at the top. Pinned items are never removed by the history limit,
   "Clear all" or "Clear history on quit".
 - Skips passwords and other content that apps mark as private (see [Privacy](#privacy)).
-- Pause recording from the popup, the tray menu or settings.
+- Pause recording from the popup, the tray menu or settings. While paused, the menu bar icon
+  shows a pause symbol (a grey tile on Windows).
 - Global shortcut to open the popup near the cursor (configurable).
 - Launch at login.
 - Native glass look: macOS vibrancy, Windows 11 acrylic, light and dark mode, system accent

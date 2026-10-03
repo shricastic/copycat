@@ -5,6 +5,7 @@
 // Outputs:
 //   resources/iconTemplate.png, resources/iconTemplate@2x.png  macOS menu bar (template: black + alpha)
 //   resources/tray.ico                                         Windows tray (16/20/24/32/40/48)
+//   resources/iconPausedTemplate.png (+@2x), trayPaused.ico    the same, while recording is paused
 //   build/icon.png (1024), build/icon.ico, build/icon.icns     app icon placeholder for packaging
 //
 // Shapes are described in a 16x16 unit grid and rasterized with supersampling.
@@ -27,12 +28,21 @@ function inRoundRect(x, y, x0, y0, x1, y1, r) {
   return (x - cx) ** 2 + (y - cy) ** 2 <= r * r
 }
 
-/** Clipboard glyph: board outline, clip on top, two text lines. */
-function glyph(x, y) {
+/**
+ * Clipboard glyph: board outline, clip on top, and two text lines inside. The paused variant
+ * swaps the text lines for a pause symbol, so the state reads at a glance in the menu bar.
+ */
+function glyph(x, y, paused = false) {
   const outer = inRoundRect(x, y, 2.5, 2.5, 13.5, 15.5, 2)
   const inner = inRoundRect(x, y, 4, 4, 12, 14, 0.75)
   const board = outer && !inner
   const clip = inRoundRect(x, y, 5, 1, 11, 5, 1)
+  if (paused) {
+    // Two 2-unit bars on whole units: crisp at 16 px, centred on the board (x = 8).
+    const bar1 = inRoundRect(x, y, 5, 7, 7, 12, 0.5)
+    const bar2 = inRoundRect(x, y, 9, 7, 11, 12, 0.5)
+    return board || clip || bar1 || bar2
+  }
   const line1 = inRoundRect(x, y, 6, 7.5, 10, 8.5, 0.5)
   const line2 = inRoundRect(x, y, 6, 10.5, 9, 11.5, 0.5)
   return board || clip || line1 || line2
@@ -81,10 +91,11 @@ function render(size, shade, samples = 4) {
 }
 
 // Template icon: pure black, shape only in alpha. macOS tints it for light/dark menu bars.
-const templateShade = (u, v) => (glyph(u, v) ? [0, 0, 0, 255] : null)
+const templateShade = (paused) => (u, v) => (glyph(u, v, paused) ? [0, 0, 0, 255] : null)
 
-// Windows tray / app icon: accent tile with a white glyph, readable on light and dark taskbars.
-function tileShade(inset, radius) {
+// Windows tray / app icon: tile with a white glyph, readable on light and dark taskbars.
+// Blue normally; grey while paused (Windows tray icons aren't tinted by the OS).
+function tileShade(inset, radius, paused = false) {
   return (u, v) => {
     if (!inRoundRect(u, v, inset, inset, 16 - inset, 16 - inset, radius)) return null
     // Map the glyph into the tile with some padding.
@@ -92,9 +103,12 @@ function tileShade(inset, radius) {
     const k = (16 - 2 * pad) / 16
     const gu = (u - pad) / k
     const gv = (v - pad) / k
-    if (glyph(gu, gv)) return [255, 255, 255, 255]
-    // Vertical gradient: #4f8cff -> #2d5be3
+    if (glyph(gu, gv, paused)) return [255, 255, 255, 255]
     const t = v / 16
+    // Vertical gradient: grey #8e939a -> #62676e, or blue #4f8cff -> #2d5be3.
+    if (paused) {
+      return [Math.round(142 - 44 * t), Math.round(147 - 44 * t), Math.round(154 - 44 * t), 255]
+    }
     return [Math.round(79 - 34 * t), Math.round(140 - 49 * t), 255 - Math.round(28 * t), 255]
   }
 }
@@ -169,16 +183,26 @@ const write = (rel, data) => {
 
 // ---------- outputs ----------
 
-// macOS menu bar template icons (16pt @1x / @2x).
-write('resources/iconTemplate.png', png(16, templateShade, 8))
-write('resources/iconTemplate@2x.png', png(32, templateShade, 8))
+// macOS menu bar template icons (16pt @1x / @2x), normal and paused.
+for (const [name, paused] of [
+  ['iconTemplate', false],
+  ['iconPausedTemplate', true]
+]) {
+  write(`resources/${name}.png`, png(16, templateShade(paused), 8))
+  write(`resources/${name}@2x.png`, png(32, templateShade(paused), 8))
+}
 
 // Windows tray: sizes for 100%-250% DPI scaling. Full-bleed tile with a small corner radius.
-const trayShade = tileShade(0.5, 3)
-write(
-  'resources/tray.ico',
-  encodeIco([16, 20, 24, 32, 40, 48].map((s) => ({ size: s, png: png(s, trayShade, 8) })))
-)
+for (const [name, paused] of [
+  ['tray', false],
+  ['trayPaused', true]
+]) {
+  const shade = tileShade(0.5, 3, paused)
+  write(
+    `resources/${name}.ico`,
+    encodeIco([16, 20, 24, 32, 40, 48].map((s) => ({ size: s, png: png(s, shade, 8) })))
+  )
+}
 
 // App icon placeholder. macOS icon grid: ~10% transparent margin around the rounded tile.
 const appShade = tileShade(1.6, 3.2)

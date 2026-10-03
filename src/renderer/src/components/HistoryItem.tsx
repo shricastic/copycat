@@ -12,6 +12,8 @@ interface Props {
   /** Last pinned row before unpinned ones: draws the divider under it. */
   lastPinned: boolean
   now: number
+  /** Hover: the parent ignores it until the pointer has really moved. */
+  onHover(index: number): void
   onSelect(index: number): void
   onPaste(id: string): void
   onMenu(id: string): void
@@ -29,6 +31,7 @@ export const HistoryItem = memo(function HistoryItem({
   selected,
   lastPinned,
   now,
+  onHover,
   onSelect,
   onPaste,
   onMenu
@@ -44,8 +47,7 @@ export const HistoryItem = memo(function HistoryItem({
       role="option"
       aria-selected={selected}
       className={`item${selected ? ' selected' : ''}${lastPinned ? ' last-pinned' : ''}`}
-      // mousemove (not mouseenter) so keyboard scrolling doesn't steal the selection.
-      onMouseMove={() => !selected && onSelect(index)}
+      onMouseMove={() => !selected && onHover(index)}
       onClick={() => onPaste(item.id)}
       onContextMenu={(e) => {
         e.preventDefault()

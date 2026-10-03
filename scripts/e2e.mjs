@@ -134,6 +134,31 @@ try {
   const M = `const { screen } = globalThis.__copycat.electron;
     const h = globalThis.__copycat; const w = h.windowApi; const win = w.getPopupWindow();`
   await waitFor(() => main.evaluate(`return !!globalThis.__copycat`))
+  // Window event log for diagnosing failures (show/hide/focus/blur with timestamps).
+  await main.evaluate(`const win = globalThis.__copycat.windowApi.getPopupWindow();
+    globalThis.__events = [];
+    for (const ev of ['show', 'hide', 'focus', 'blur'])
+      win.on(ev, () => globalThis.__events.push(ev + '@' + (Date.now() % 100000)));`)
+  const events = () => main.evaluate(`return globalThis.__events.splice(0).join(' ')`)
+  const frontApp = () => {
+    try {
+      return isMac
+        ? execFileSync(
+            'lsappinfo',
+            [
+              'info',
+              '-only',
+              'name',
+              '-app',
+              execFileSync('lsappinfo', ['front'], { encoding: 'utf8' }).trim()
+            ],
+            { encoding: 'utf8' }
+          ).trim()
+        : ''
+    } catch {
+      return '?'
+    }
+  }
 
   const pageTarget = await waitFor(async () => {
     const list = await (await fetch(`http://127.0.0.1:${RENDERER_PORT}/json/list`)).json()
@@ -191,8 +216,10 @@ try {
     const b = win.getBounds(); const t = h.getTray().getBounds();
     const wa = screen.getDisplayNearestPoint({ x: t.x + t.width / 2, y: t.y + t.height / 2 }).workArea;
     return { visible: win.isVisible(), focused: win.isFocused(), b, t, wa }`)
-  check('tray click opens popup', open.visible)
-  check('popup is focused', open.focused)
+  const openDiag =
+    open.visible && open.focused ? '' : `events: ${await events()} front: ${frontApp()}`
+  check('tray click opens popup', open.visible, openDiag)
+  check('popup is focused', open.focused, openDiag)
   const { b, t, wa } = open
   const inside =
     b.x >= wa.x &&
@@ -309,7 +336,19 @@ try {
   const domFirst = await page.evaluate(
     `return document.querySelector('.item .item-text')?.textContent`
   )
-  check('renderer list updated via push', domFirst === (await texts())[0], domFirst)
+  const storeFirst = (await texts())[0]
+  const pushDiag =
+    domFirst === storeFirst
+      ? domFirst
+      : JSON.stringify({
+          domFirst,
+          storeFirst,
+          page: await page.evaluate(
+            `return { vis: document.visibilityState, settings: !!document.querySelector('.settings'), n: document.querySelectorAll('.item').length }`
+          ),
+          events: await events()
+        })
+  check('renderer list updated via push', domFirst === storeFirst, pushDiag)
 
   // Paste from the popup (own write): clipboard set, popup hidden, history not reordered.
   const beforePaste = await texts()
@@ -339,8 +378,27 @@ try {
   await settle()
   check('paused: copy not recorded', !(await texts()).includes(`${tag}-during-pause`))
   const banner = await page.evaluate(`return document.querySelector('.banner')?.textContent`)
-  check('paused banner shown', /^Paused\./.test(banner ?? ''), banner)
+  const bannerOk = /^Paused\./.test(banner ?? '')
+  const bannerDiag = bannerOk
+    ? banner
+    : JSON.stringify({
+        banner,
+        paused: await main.evaluate(`return globalThis.__copycat.store.getSettings().paused`),
+        page: await page.evaluate(
+          `return { vis: document.visibilityState, settings: !!document.querySelector('.settings'), search: !!document.querySelector('.search') }`
+        ),
+        events: await events()
+      })
+  check('paused banner shown', bannerOk, bannerDiag)
+  const trayPaused = await main.evaluate(`return globalThis.__copycat.trayIconState()`)
+  check(
+    'tray icon switches to paused image',
+    trayPaused.paused && trayPaused.loaded,
+    JSON.stringify(trayPaused)
+  )
   await page.evaluate(`await window.api.updateSettings({ paused: false })`)
+  const trayResumed = await main.evaluate(`return globalThis.__copycat.trayIconState()`)
+  check('tray icon switches back on resume', !trayResumed.paused, JSON.stringify(trayResumed))
   await settle()
   check(
     'resume does not record what was copied while paused',
@@ -388,16 +446,52 @@ try {
   await settle()
   await copy(`${tag}-kb-two`)
   await settle()
+  // Open under the tray (not at the cursor) so the user's real mouse can't hover a row.
   const kb = await main.evaluate(`${M}
     const key = (k) => win.webContents.sendInputEvent({ type: 'keyDown', keyCode: k });
-    w.togglePopupAtCursor(); await new Promise(r => setTimeout(r, 300));
+    w.togglePopupFromTray(h.getTray().getBounds()); await new Promise(r => setTimeout(r, 300));
+    const order = await win.webContents.executeJavaScript(
+      "[...document.querySelectorAll('.item .item-text')].map(e => e.textContent)");
     key('Down'); await new Promise(r => setTimeout(r, 100));
     key('Return'); await new Promise(r => setTimeout(r, 300));
-    return { clip: h.electron.clipboard.readText(), visible: win.isVisible() }`)
+    return { expected: order[1], clip: h.electron.clipboard.readText(), visible: win.isVisible() }`)
   check(
     'ArrowDown + Enter pastes second item',
-    kb.clip === `${tag}-kb-one` && !kb.visible,
+    !!kb.expected && kb.clip === kb.expected && !kb.visible,
     JSON.stringify(kb)
+  )
+
+  // Regression: a popup opening under a still cursor gets a synthetic mousemove; it must not
+  // move the selection off the newest item. Real movement afterwards still selects.
+  const hover = await main.evaluate(`${M}
+    const q = (js) => win.webContents.executeJavaScript(js);
+    const selectedIndex = () => q("[...document.querySelectorAll('.item')].findIndex(e => e.classList.contains('selected'))");
+    w.togglePopupFromTray(h.getTray().getBounds()); await new Promise(r => setTimeout(r, 300));
+    const rect = await q("(() => { const r = document.querySelectorAll('.item')[2].getBoundingClientRect(); return { x: r.x + 20, y: r.y + r.height / 2 } })()");
+    // Real mouse events carry screen coordinates; synthetic ones need globalX/globalY set too.
+    const wb = win.getBounds();
+    await q("window.__screens = []; window.addEventListener('mousemove', e => window.__screens.push([e.screenX, e.screenY]))");
+    const move = (x, y) => win.webContents.sendInputEvent({
+      type: 'mouseMove', x: Math.round(x), y: Math.round(y),
+      globalX: Math.round(wb.x + x), globalY: Math.round(wb.y + y) });
+    move(rect.x, rect.y); await new Promise(r => setTimeout(r, 80));
+    move(rect.x, rect.y); await new Promise(r => setTimeout(r, 80));
+    const afterStill = await selectedIndex();
+    move(rect.x + 15, rect.y); await new Promise(r => setTimeout(r, 80));
+    move(rect.x + 30, rect.y); await new Promise(r => setTimeout(r, 120));
+    const afterMove = await selectedIndex();
+    const screens = await q('window.__screens');
+    w.hidePopup();
+    return { afterStill, afterMove, screens }`)
+  check(
+    'pointer resting where the popup opens does not change selection',
+    hover.afterStill === 0,
+    JSON.stringify(hover)
+  )
+  check(
+    'real pointer movement selects the hovered row',
+    hover.afterMove === 2,
+    JSON.stringify(hover)
   )
 
   const search = await main.evaluate(`${M}
@@ -487,7 +581,7 @@ try {
     await settle()
   }
   const pinTarget = (await history()).find((i) => i.text === `${tag}-pin-1`)
-  await main.evaluate(`${M} w.togglePopupAtCursor()`)
+  await main.evaluate(`${M} w.togglePopupFromTray(h.getTray().getBounds())`)
   await sleep(300)
   await page.evaluate(`await window.api.togglePin(${JSON.stringify(pinTarget.id)})`)
   await sleep(200)
@@ -527,21 +621,27 @@ try {
   // Settings view via Cmd/Ctrl+, ; Esc steps back without closing.
   const sv = await main.evaluate(`${M}
     const q = (js) => win.webContents.executeJavaScript(js);
+    const visibleBefore = win.isVisible();
     win.webContents.sendInputEvent({ type: 'keyDown', keyCode: ',', modifiers: ['${modifier}'] });
     await new Promise(r => setTimeout(r, 200));
+    const visibleInSettings = win.isVisible();
     const opened = await q("!!document.querySelector('.settings') && document.querySelector('.header-title')?.textContent");
     const shortcutLabel = await q("document.querySelector('.shortcut-field')?.textContent");
     win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
     await new Promise(r => setTimeout(r, 200));
     const back = await q("!!document.querySelector('.search') && !document.querySelector('.settings')");
-    return { opened, shortcutLabel, back, visible: win.isVisible() }`)
+    return { visibleBefore, visibleInSettings, opened, shortcutLabel, back, visible: win.isVisible() }`)
   check('Cmd/Ctrl+, opens settings', sv.opened === 'Settings', JSON.stringify(sv))
   check(
     'shortcut shown with platform symbols',
     sv.shortcutLabel === (isMac ? '⇧⌘V' : 'Ctrl+Shift+V'),
     sv.shortcutLabel
   )
-  check('Esc in settings returns to list, popup stays open', sv.back && sv.visible)
+  check(
+    'Esc in settings returns to list, popup stays open',
+    sv.visibleBefore && sv.back && sv.visible,
+    JSON.stringify(sv)
+  )
 
   // Settings toggles go through main and persist.
   await page.evaluate(`await window.api.updateSettings({ clearOnQuit: true })`)

@@ -3,7 +3,7 @@ import { app } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { IPC } from '@shared/types'
-import { createTray, getTray, updateTrayStatus } from './tray'
+import { createTray, getTray, trayIconState, updateTrayStatus } from './tray'
 import * as windowApi from './window'
 import { createPopupWindow, getPopupWindow, togglePopupAtCursor } from './window'
 import { registerIpc } from './ipc'
@@ -76,6 +76,7 @@ if (!app.requestSingleInstanceLock()) {
         electron,
         windowApi,
         getTray,
+        trayIconState,
         store,
         watcher,
         settings

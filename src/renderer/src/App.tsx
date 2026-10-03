@@ -26,6 +26,15 @@ function App(): React.JSX.Element {
   const [confirmClear, setConfirmClear] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLUListElement>(null)
+  // Hover selects a row only after the pointer has really moved. Chromium also sends synthetic
+  // mousemoves when content appears or scrolls under a still cursor (popup opening at the
+  // cursor, arrow-key scrolling); those must not steal the selection.
+  const hoverArmed = useRef(false)
+  const pointerAnchor = useRef<{ x: number; y: number } | null>(null)
+  const disarmHover = useCallback(() => {
+    hoverArmed.current = false
+    pointerAnchor.current = null
+  }, [])
 
   // ---------- data from main ----------
 
@@ -42,6 +51,7 @@ function App(): React.JSX.Element {
     // Every time the popup opens: history view, fresh search, top item selected.
     const offShown = api.onPopupShown((appearance) => {
       applyAppearance(appearance)
+      disarmHover()
       setView('list')
       setQuery('')
       setSelected(0)
@@ -55,6 +65,18 @@ function App(): React.JSX.Element {
       offSettings()
       offShown()
     }
+  }, [disarmHover])
+
+  // The first mousemove only records where the pointer is; a later one at a different
+  // position is real movement and re-enables hover selection.
+  useEffect(() => {
+    const onMove = (e: MouseEvent): void => {
+      const anchor = pointerAnchor.current
+      if (!anchor) pointerAnchor.current = { x: e.screenX, y: e.screenY }
+      else if (anchor.x !== e.screenX || anchor.y !== e.screenY) hoverArmed.current = true
+    }
+    window.addEventListener('mousemove', onMove)
+    return () => window.removeEventListener('mousemove', onMove)
   }, [])
 
   // Ages are shown down to the second, so tick every second while the popup is visible.
@@ -84,6 +106,9 @@ function App(): React.JSX.Element {
   // ---------- actions ----------
 
   const paste = useCallback((id: string) => api.pasteItem(id), [])
+  const hoverSelect = useCallback((index: number) => {
+    if (hoverArmed.current) setSelected(index)
+  }, [])
   const showMenu = useCallback((id: string) => api.showItemMenu(id), [])
 
   const openSettings = useCallback(() => {
@@ -134,10 +159,12 @@ function App(): React.JSX.Element {
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault()
+          disarmHover()
           setSelected(Math.min(sel + 1, visible.length - 1))
           break
         case 'ArrowUp':
           e.preventDefault()
+          disarmHover()
           setSelected(Math.max(sel - 1, 0))
           break
         case 'Enter':
@@ -166,7 +193,7 @@ function App(): React.JSX.Element {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [view, sel, visible, paste, query, openSettings, closeSettings])
+  }, [view, sel, visible, paste, query, openSettings, closeSettings, disarmHover])
 
   const clearAll = (): void => {
     if (!confirmClear) {
@@ -240,6 +267,7 @@ function App(): React.JSX.Element {
               selected={index === sel}
               lastPinned={index === pinnedCount - 1 && pinnedCount < visible.length}
               now={now}
+              onHover={hoverSelect}
               onSelect={setSelected}
               onPaste={paste}
               onMenu={showMenu}
