@@ -1,0 +1,83 @@
+name: Release
+
+# Push a tag like v1.0.0 (matching package.json "version") to build installers and create a
+# draft GitHub Release with them attached. Review the draft, then publish it.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest # Apple silicon runner; builds arm64 and x64 dmgs
+            target: mac
+          - os: windows-latest # x64 NSIS installer
+            target: win
+    runs-on: ${{ matrix.os }}
+    env:
+      # Builds are unsigned; don't let electron-builder search the runner's keychain.
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check tag matches package.json version
+        shell: bash
+        run: |
+          version="v$(node -p "require('./package.json').version")"
+          if [ "$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME doesn't match package.json version ($version)"
+            exit 1
+          fi
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # --publish never: this workflow creates the release itself, below.
+      - run: pnpm run build:${{ matrix.target }} --publish never
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: |
+            dist/*.dmg
+            dist/*.exe
+          if-no-files-found: error
+
+  release:
+    name: Create draft release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls -la artifacts
+          gh release create "$GITHUB_REF_NAME" artifacts/* \
+            --draft \
+            --title "Copycat $GITHUB_REF_NAME" \
+            --notes-file .github/release-notes.md \
+            --generate-notes
