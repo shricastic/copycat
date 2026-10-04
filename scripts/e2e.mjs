@@ -19,12 +19,16 @@ const RENDERER_PORT = 9223
 // history. Refuse to run alongside one.
 if (process.platform !== 'win32') {
   try {
-    const running = execFileSync('pgrep', ['-f', 'copycat/node_modules/electron/dist'], {
-      encoding: 'utf8'
-    })
+    const running = execFileSync(
+      'pgrep',
+      ['-f', 'copycat/node_modules/electron/dist|Copycat.app/Contents/MacOS/Copycat'],
+      {
+        encoding: 'utf8'
+      }
+    )
     if (running.trim()) {
       console.error(
-        'Another Copycat dev instance is running (it would record test clipboard data).'
+        'Another Copycat instance (dev or installed app) is running; it would record test clipboard data.'
       )
       console.error(`Quit it first. PIDs: ${running.trim().split('\n').join(', ')}`)
       process.exit(2)
@@ -281,6 +285,31 @@ try {
     const ok = b.x >= wa.x && b.y >= wa.y && b.x + b.width <= wa.x + wa.width && b.y + b.height <= wa.y + wa.height;
     w.hidePopup(); return { ok, b, wa }`)
   check('cursor-positioned popup inside work area', cur.ok, JSON.stringify(cur.b))
+
+  // Off-screen guard: something else moving the visible popup off screen gets corrected
+  // (back to where we placed it) and logged.
+  await events() // start the window event log fresh for this step
+  const guard = await main.evaluate(`${M}
+    w.togglePopupFromTray(h.getTray().getBounds());
+    const visibleRightAway = win.isVisible();
+    await new Promise(r => setTimeout(r, 300));
+    const placed = win.getBounds();
+    const visibleBefore = win.isVisible();
+    win.setPosition(5000, -600);
+    await new Promise(r => setTimeout(r, 200));
+    const after = win.getBounds();
+    w.hidePopup();
+    const fs = process.getBuiltinModule('fs');
+    let log = '';
+    try { log = fs.readFileSync(h.getLogPath(), 'utf8') } catch {}
+    return { visibleRightAway, visibleBefore, placed, after, logged: log.includes('"popup-off-screen"') }`)
+  guard.events = await events()
+  check(
+    'popup pushed off screen is moved back',
+    guard.visibleBefore && guard.after.x === guard.placed.x && guard.after.y === guard.placed.y,
+    JSON.stringify(guard)
+  )
+  check('off-screen correction is logged', guard.logged)
 
   const displays = await main.evaluate(`${M} return screen.getAllDisplays().map(d => d.workArea)`)
   console.log(`info  displays: ${JSON.stringify(displays)}`)

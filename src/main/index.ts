@@ -10,6 +10,7 @@ import { registerIpc } from './ipc'
 import { Store, MAX_TEXT_LENGTH } from './store'
 import { ClipboardWatcher } from './clipboardWatcher'
 import { SettingsController } from './settings'
+import { getLogPath } from './log'
 
 // Scripted checks (scripts/e2e.mjs) run with their own profile so they neither touch real
 // history nor collide with a running instance's single-instance lock. Dev only.
@@ -81,6 +82,7 @@ if (!app.requestSingleInstanceLock()) {
         windowApi,
         getTray,
         trayIconState,
+        getLogPath,
         store,
         watcher,
         settings
