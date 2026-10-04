@@ -849,6 +849,32 @@ main > .keys {
   font-weight: 600;
 }
 
+/* Mac installation walkthrough video. */
+.install-guide {
+  margin: 1.75rem 0 0;
+}
+
+.install-guide video {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 0.5px solid var(--glass-edge);
+  border-radius: 12px;
+  background: #000;
+  box-shadow: 0 14px 34px -14px rgb(20 40 120 / 0.45);
+}
+
+.install-guide figcaption {
+  margin-top: 0.75rem;
+  color: var(--ink-2);
+  font-size: 0.9rem;
+}
+
+.install-guide figcaption strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
 .first-launch {
   margin-top: 1.5rem;
 }
