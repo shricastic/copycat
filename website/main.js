@@ -3,6 +3,20 @@
 const REPO = 'shricastic/copycat'
 const RELEASES_PAGE = `https://github.com/${REPO}/releases/latest`
 
+const isWindows = /Windows/i.test(navigator.userAgentData?.platform ?? navigator.userAgent)
+
+// ---------- shortcut labels ----------
+
+// The markup shows ⌘⇧V; Windows visitors see Ctrl Shift V instead.
+if (isWindows) {
+  for (const el of document.querySelectorAll('[data-shortcut]')) {
+    for (const kbd of el.querySelectorAll('kbd')) {
+      if (kbd.textContent === '⌘') kbd.textContent = 'Ctrl'
+      else if (kbd.textContent === '⇧') kbd.textContent = 'Shift'
+    }
+  }
+}
+
 // ---------- menu bar clock ----------
 
 const clock = document.getElementById('clock')
@@ -14,12 +28,14 @@ setInterval(tickClock, 15_000)
 
 // ---------- demo popup ----------
 
-const MAX_ITEMS = 8
+const MAX_UNPINNED = 7
 const now = () => Date.now()
 const ago = (seconds) => now() - seconds * 1000
 
-// Starting history: the kind of things people copy.
+// Starting history: the kind of things people copy, with two pinned favourites.
 let items = [
+  { text: '221B Baker Street, London NW1 6XE', at: ago(9 * 86400), pinned: true },
+  { text: 'pnpm install && pnpm dev', at: ago(3 * 86400), pinned: true },
   { text: 'https://github.com/shricastic/copycat', at: ago(40) },
   {
     text: 'const accent = systemPreferences.getAccentColor()\nreturn `#${accent.slice(0, 6)}`',
@@ -31,8 +47,13 @@ let items = [
   { text: 'Ship the landing page before Friday', at: ago(2 * 86400) }
 ]
 
+const popup = document.getElementById('demo-popup')
 const list = document.getElementById('demo-list')
 const search = document.getElementById('demo-search')
+const trayIcon = document.getElementById('tray-icon')
+const hero = document.querySelector('.desktop')
+
+let selected = 0
 let arrivedText = null
 let copiedText = null
 
@@ -47,44 +68,68 @@ function compactAge(at) {
 }
 
 const SVG_NS = 'http://www.w3.org/2000/svg'
-function copyIcon() {
+function icon(className, shapes) {
   const svg = document.createElementNS(SVG_NS, 'svg')
   svg.setAttribute('viewBox', '0 0 16 16')
-  svg.setAttribute('class', 'row-copy')
+  svg.setAttribute('class', className)
   svg.setAttribute('aria-hidden', 'true')
-  const rect = document.createElementNS(SVG_NS, 'rect')
-  for (const [k, v] of Object.entries({ x: 5.25, y: 5.25, width: 8.5, height: 8.5, rx: 2 })) {
-    rect.setAttribute(k, v)
+  for (const [tag, attrs] of shapes) {
+    const el = document.createElementNS(SVG_NS, tag)
+    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v)
+    svg.append(el)
   }
-  const path = document.createElementNS(SVG_NS, 'path')
-  path.setAttribute(
-    'd',
-    'M10.75 3.25v-.5a1.5 1.5 0 0 0-1.5-1.5h-6a1.5 1.5 0 0 0-1.5 1.5v6a1.5 1.5 0 0 0 1.5 1.5h.5'
-  )
-  svg.append(rect, path)
   return svg
+}
+const copyIcon = () =>
+  icon('row-copy', [
+    ['rect', { x: 5.25, y: 5.25, width: 8.5, height: 8.5, rx: 2 }],
+    [
+      'path',
+      {
+        d: 'M10.75 3.25v-.5a1.5 1.5 0 0 0-1.5-1.5h-6a1.5 1.5 0 0 0-1.5 1.5v6a1.5 1.5 0 0 0 1.5 1.5h.5'
+      }
+    ]
+  ])
+const pinIcon = () =>
+  icon('row-pin', [
+    [
+      'path',
+      {
+        d: 'M9.6 1.9 14.1 6.4a.6.6 0 0 1-.25 1L11.2 8.2 8.9 10.5l.35 2.6a.6.6 0 0 1-1 .5L2.4 7.75a.6.6 0 0 1 .5-1l2.6.35L7.8 4.8 8.6 2.15a.6.6 0 0 1 1-.25Z'
+      }
+    ],
+    ['path', { d: 'M5.3 10.7 1.75 14.25' }]
+  ])
+
+/** What the list shows: pinned first, then the rest, filtered by the search box. */
+function visibleItems() {
+  const q = search.value.trim().toLowerCase()
+  const matches = q ? items.filter((i) => i.text.toLowerCase().includes(q)) : items
+  return [...matches.filter((i) => i.pinned), ...matches.filter((i) => !i.pinned)]
 }
 
 function render() {
-  const q = search.value.trim().toLowerCase()
-  const visible = q ? items.filter((i) => i.text.toLowerCase().includes(q)) : items
+  const visible = visibleItems()
+  selected = Math.min(selected, Math.max(0, visible.length - 1))
+  const pinnedCount = visible.filter((i) => i.pinned).length
   list.replaceChildren()
 
   if (visible.length === 0) {
     const empty = document.createElement('li')
     empty.className = 'popup-empty'
-    empty.textContent = items.length
-      ? `Nothing matches “${search.value.trim()}”.`
-      : 'Text you copy will appear here.'
+    empty.textContent = `Nothing matches “${search.value.trim()}”.`
     list.append(empty)
     return
   }
 
-  for (const item of visible) {
+  visible.forEach((item, index) => {
     const li = document.createElement('li')
     li.className = 'row'
+    li.setAttribute('role', 'option')
+    li.setAttribute('aria-selected', String(index === selected))
+    if (index === selected) li.classList.add('selected')
+    if (index === pinnedCount - 1 && pinnedCount < visible.length) li.classList.add('last-pinned')
     if (item.text === arrivedText) li.classList.add('arrived')
-    li.title = 'Click to copy'
 
     const text = document.createElement('div')
     const trimmed = item.text.trim()
@@ -100,23 +145,53 @@ function render() {
       done.textContent = 'Copied'
       aside.append(done)
     } else {
-      const age = document.createElement('span')
-      age.className = 'row-age'
-      age.textContent = compactAge(item.at)
-      aside.append(age, copyIcon())
+      if (item.pinned) {
+        aside.append(pinIcon())
+      } else {
+        const age = document.createElement('span')
+        age.className = 'row-age'
+        age.dataset.at = String(item.at)
+        age.textContent = compactAge(item.at)
+        aside.append(age)
+      }
+      aside.append(copyIcon())
     }
 
     li.append(text, aside)
+    li.addEventListener('mousemove', () => select(index))
     li.addEventListener('click', () => copyFromDemo(item.text))
     list.append(li)
-  }
+  })
+}
+
+/** Move the highlight without rebuilding the list (rows stay put under the pointer). */
+function select(index) {
+  if (index === selected) return
+  const rows = list.querySelectorAll('.row')
+  rows[selected]?.classList.remove('selected')
+  rows[selected]?.setAttribute('aria-selected', 'false')
+  selected = index
+  rows[selected]?.classList.add('selected')
+  rows[selected]?.setAttribute('aria-selected', 'true')
+}
+
+function scrollSelectedIntoView() {
+  list.querySelector('.row.selected')?.scrollIntoView({ block: 'nearest' })
 }
 
 /** Like the app: a new copy goes to the top; copying an existing item moves it up. */
 function record(text) {
-  items = [{ text, at: now() }, ...items.filter((i) => i.text !== text)].slice(0, MAX_ITEMS)
+  const existing = items.find((i) => i.text === text)
+  const entry = { text, at: now(), pinned: existing?.pinned ?? false }
+  const rest = items.filter((i) => i !== existing)
+  const pinned = rest.filter((i) => i.pinned)
+  const unpinned = rest.filter((i) => !i.pinned)
+  items = entry.pinned
+    ? [entry, ...pinned, ...unpinned]
+    : [...pinned, entry, ...unpinned.slice(0, MAX_UNPINNED - 1)]
   arrivedText = text
   search.value = ''
+  selected = 0
   render()
   list.scrollTop = 0
   setTimeout(() => {
@@ -130,7 +205,7 @@ document.addEventListener('copy', () => {
   if (text) record(text)
 })
 
-// Clicking a demo row puts it on the real clipboard, like picking an item in Copycat.
+// Picking a row puts it on the real clipboard, like choosing an item in Copycat.
 async function copyFromDemo(text) {
   try {
     await navigator.clipboard.writeText(text)
@@ -147,9 +222,79 @@ async function copyFromDemo(text) {
   }, 1200)
 }
 
-search.addEventListener('input', render)
+// Open and close, like the real popup: ⌘⇧V, the tray icon, or Esc.
+function isOpen() {
+  return !popup.classList.contains('closed')
+}
+
+function setOpen(open) {
+  popup.classList.toggle('closed', !open)
+  trayIcon.setAttribute('aria-expanded', String(open))
+  if (open) {
+    search.value = ''
+    selected = 0
+    render()
+    list.scrollTop = 0
+    search.focus({ preventScroll: true })
+  } else if (popup.contains(document.activeElement)) {
+    trayIcon.focus({ preventScroll: true })
+  }
+}
+
+trayIcon.addEventListener('click', () => setOpen(!isOpen()))
+
+document.addEventListener('keydown', (e) => {
+  const mod = isWindows ? e.ctrlKey : e.metaKey
+  if (mod && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'v') {
+    // Leave paste-and-match-style alone in other editable fields on the page.
+    const t = e.target
+    const editable =
+      t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA)$/.test(t.tagName))
+    if (editable && t !== search) return
+    e.preventDefault()
+    // If the hero is scrolled away, bring it back so the popup is actually visible.
+    if (!isOpen() && hero.getBoundingClientRect().bottom < 120) {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+    setOpen(!isOpen())
+    return
+  }
+
+  if (!isOpen() || !popup.contains(document.activeElement)) return
+  const visible = visibleItems()
+  switch (e.key) {
+    case 'ArrowDown':
+      e.preventDefault()
+      select(Math.min(selected + 1, visible.length - 1))
+      scrollSelectedIntoView()
+      break
+    case 'ArrowUp':
+      e.preventDefault()
+      select(Math.max(selected - 1, 0))
+      scrollSelectedIntoView()
+      break
+    case 'Enter':
+      e.preventDefault()
+      if (visible[selected]) copyFromDemo(visible[selected].text)
+      break
+    case 'Escape':
+      e.preventDefault()
+      setOpen(false)
+      break
+  }
+})
+
+search.addEventListener('input', () => {
+  selected = 0
+  render()
+})
+
+// Ages tick like the app's: update the text in place, so rows never change under a click.
 setInterval(() => {
-  if (!document.hidden) render()
+  if (document.hidden || !isOpen()) return
+  for (const age of list.querySelectorAll('.row-age')) {
+    age.textContent = compactAge(Number(age.dataset.at))
+  }
 }, 1000)
 render()
 

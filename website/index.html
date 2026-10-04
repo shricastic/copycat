@@ -8,8 +8,8 @@
       name="description"
       content="Copycat keeps everything you copy in your Mac menu bar. Press ⌘⇧V to find it and paste it again. Free for macOS and Windows."
     />
-    <meta name="theme-color" content="#f4f5f7" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#141518" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#eef3fe" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0d1222" media="(prefers-color-scheme: dark)" />
     <meta property="og:title" content="Copycat: clipboard history for your menu bar" />
     <meta
       property="og:description"
@@ -23,17 +23,25 @@
   </head>
 
   <body>
-    <!-- Hero: a mock desktop with a working Copycat popup. -->
-    <header class="desktop">
-      <div class="menubar" aria-hidden="true">
+    <!-- Hero: a mock Mac desktop with a working Copycat popup. -->
+    <header class="desktop wallpaper">
+      <div class="menubar">
         <span class="menubar-app">Copycat</span>
         <span class="menubar-right">
-          <svg class="menubar-icon" viewBox="0 0 16 16">
-            <rect x="3.25" y="3.25" width="9.5" height="11.5" rx="1.6" />
-            <rect x="5.5" y="1.75" width="5" height="3" rx="0.9" class="fill" />
-            <path d="M6.25 8h3.5M6.25 10.75h2.5" />
-          </svg>
-          <span class="menubar-clock" id="clock">9:41</span>
+          <button
+            class="menubar-icon"
+            id="tray-icon"
+            aria-label="Open or close the Copycat demo"
+            aria-expanded="true"
+            aria-controls="demo-popup"
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <rect x="3.25" y="3.25" width="9.5" height="11.5" rx="1.6" />
+              <rect x="5.5" y="1.75" width="5" height="3" rx="0.9" class="fill" />
+              <path d="M6.25 8h3.5M6.25 10.75h2.5" />
+            </svg>
+          </button>
+          <span class="menubar-clock" id="clock" aria-hidden="true">9:41</span>
         </span>
       </div>
 
@@ -46,8 +54,8 @@
           </h1>
           <p class="lede">
             Copycat keeps a history of the text you copy, right in your menu bar. Press
-            <span class="shortcut"><kbd>⌘</kbd><kbd>⇧</kbd><kbd>V</kbd></span> in any app to find
-            something and paste it again.
+            <span class="shortcut" data-shortcut><kbd>⌘</kbd><kbd>⇧</kbd><kbd>V</kbd></span> in any
+            app to find something and paste it again.
           </p>
           <div class="cta">
             <a class="button primary" id="primary-download" href="#download">Download</a>
@@ -56,9 +64,9 @@
           <p class="cta-note" id="version-note">Free for macOS and Windows.</p>
         </div>
 
-        <!-- A small, working replica of the app's popup. main.js records what you copy on this page. -->
-        <figure class="demo" aria-label="Copycat demo: copy text on this page to add it">
-          <div class="popup">
+        <!-- A working replica of the app's popup; main.js drives it. -->
+        <figure class="demo" aria-label="Copycat demo">
+          <div class="popup" id="demo-popup" tabindex="-1">
             <div class="popup-search">
               <svg viewBox="0 0 16 16" aria-hidden="true">
                 <circle cx="6.75" cy="6.75" r="4.75" />
@@ -70,102 +78,167 @@
                 placeholder="Search clipboard history"
                 aria-label="Search the demo history"
                 spellcheck="false"
+                autocomplete="off"
               />
             </div>
-            <ul class="popup-list" id="demo-list" aria-live="polite"></ul>
+            <ul class="popup-list" id="demo-list" role="listbox" aria-label="Demo history"></ul>
             <div class="popup-credit">Made with <span class="heart">♥</span> by Shricastic</div>
             <div class="popup-footer" aria-hidden="true">
               <span>Clear all</span><span>Pause</span><span class="spacer"></span><span>Quit</span>
             </div>
           </div>
-          <figcaption>Copy any text on this page and watch it appear.</figcaption>
+          <figcaption id="demo-caption">
+            Copy any text on this page and it shows up here. Press
+            <span class="shortcut" data-shortcut><kbd>⌘</kbd><kbd>⇧</kbd><kbd>V</kbd></span> to open
+            and close it.
+          </figcaption>
         </figure>
       </div>
     </header>
 
     <main>
-      <section class="features" aria-labelledby="features-title">
-        <h2 id="features-title">Quiet until you need it</h2>
-        <ul class="feature-list">
-          <li>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="10.5" cy="10.5" r="6.5" />
-              <path d="m15.5 15.5 5 5" />
-            </svg>
-            <div>
-              <h3>Search everything you copied</h3>
-              <p>Newest first, with how long ago you copied it. Start typing to narrow it down.</p>
+      <!-- Each main feature, with a small slice of the real interface. -->
+      <section class="showcase" aria-label="Features">
+        <article class="show-row">
+          <div class="show-text">
+            <h2>Pin what you reuse</h2>
+            <p>
+              Addresses, snippets, the commands you type every day. Pinned items stay at the top and
+              are never cleared, even when your history fills up.
+            </p>
+          </div>
+          <div class="vignette wallpaper" aria-hidden="true">
+            <div class="mini-popup">
+              <div class="row pinned">
+                <span class="row-text">221B Baker Street, London NW1 6XE</span>
+                <svg class="row-pin" viewBox="0 0 16 16">
+                  <path
+                    d="M9.6 1.9 14.1 6.4a.6.6 0 0 1-.25 1L11.2 8.2 8.9 10.5l.35 2.6a.6.6 0 0 1-1 .5L2.4 7.75a.6.6 0 0 1 .5-1l2.6.35L7.8 4.8 8.6 2.15a.6.6 0 0 1 1-.25Z"
+                  />
+                  <path d="M5.3 10.7 1.75 14.25" />
+                </svg>
+              </div>
+              <div class="row pinned last-pinned selected">
+                <span class="row-text mono">pnpm install &amp;&amp; pnpm dev</span>
+                <svg class="row-pin" viewBox="0 0 16 16">
+                  <path
+                    d="M9.6 1.9 14.1 6.4a.6.6 0 0 1-.25 1L11.2 8.2 8.9 10.5l.35 2.6a.6.6 0 0 1-1 .5L2.4 7.75a.6.6 0 0 1 .5-1l2.6.35L7.8 4.8 8.6 2.15a.6.6 0 0 1 1-.25Z"
+                  />
+                  <path d="M5.3 10.7 1.75 14.25" />
+                </svg>
+              </div>
+              <div class="row">
+                <span class="row-text">Flight lands at 18:40, terminal 2</span
+                ><span class="row-age">4m</span>
+              </div>
+              <div class="row">
+                <span class="row-text">https://github.com/shricastic/copycat</span
+                ><span class="row-age">1h</span>
+              </div>
             </div>
-          </li>
-          <li>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M14.4 2.9 21.1 9.6l-3.9 1.2-3.5 3.5.5 3.9-8.4-8.4 3.9.5 3.5-3.5Z" />
-              <path d="m8 16-5 5" />
-            </svg>
-            <div>
-              <h3>Pin what you reuse</h3>
-              <p>
-                Pinned items stay at the top and are never cleared, even when the history fills up.
-              </p>
+          </div>
+        </article>
+
+        <article class="show-row reverse">
+          <div class="show-text">
+            <h2>Passwords stay out</h2>
+            <p>
+              Password managers mark what they copy as private, and Copycat never records it. Want a
+              break from recording? Pause it, and the menu bar icon shows it.
+            </p>
+          </div>
+          <div class="vignette wallpaper" aria-hidden="true">
+            <div class="mini-stack">
+              <div class="mini-popup">
+                <div class="row">
+                  <span class="row-text">Lunch at 1? The usual place</span
+                  ><span class="row-age">2m</span>
+                </div>
+                <div class="row skipped">
+                  <svg class="row-lock" viewBox="0 0 16 16">
+                    <rect x="3.5" y="7" width="9" height="6.5" rx="1.4" />
+                    <path d="M5.5 7V5.25a2.5 2.5 0 0 1 5 0V7" />
+                  </svg>
+                  <span class="row-text">••••••••••••</span>
+                  <span class="row-note">Not saved</span>
+                </div>
+                <div class="row">
+                  <span class="row-text">Q3 numbers are in the shared folder</span
+                  ><span class="row-age">9m</span>
+                </div>
+              </div>
+              <div class="mini-menubar">
+                <span class="mini-tray">
+                  <svg viewBox="0 0 16 16">
+                    <rect x="3.25" y="3.25" width="9.5" height="11.5" rx="1.6" />
+                    <rect x="5.5" y="1.75" width="5" height="3" rx="0.9" class="fill" />
+                    <path d="M6.25 8h3.5M6.25 10.75h2.5" />
+                  </svg>
+                  Recording
+                </span>
+                <span class="mini-tray paused">
+                  <svg viewBox="0 0 16 16">
+                    <rect x="3.25" y="3.25" width="9.5" height="11.5" rx="1.6" />
+                    <rect x="5.5" y="1.75" width="5" height="3" rx="0.9" class="fill" />
+                    <path d="M6.5 7.5v4M9.5 7.5v4" />
+                  </svg>
+                  Paused
+                </span>
+              </div>
             </div>
-          </li>
-          <li>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <rect x="5" y="10.5" width="14" height="10" rx="2" />
-              <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" />
-            </svg>
-            <div>
-              <h3>Passwords stay out</h3>
-              <p>
-                Items your password manager marks as private are never recorded. Pause recording any
-                time.
-              </p>
-            </div>
-          </li>
-          <li>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <rect x="2.5" y="6" width="19" height="12" rx="2.5" />
-              <path d="M6.5 10h1M10 10h1M13.5 10h1M17 10h.5M7.5 14h9" />
-            </svg>
-            <div>
-              <h3>One shortcut, from anywhere</h3>
-              <p>
-                <span class="shortcut"><kbd>⌘</kbd><kbd>⇧</kbd><kbd>V</kbd></span> opens Copycat
-                next to your cursor. Change it to any keys you like.
-              </p>
-            </div>
-          </li>
-          <li>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M4 5.5h16v10H4z" />
-              <path d="M9 19.5h6M12 15.5v4" />
-            </svg>
-            <div>
-              <h3>Feels like part of your Mac</h3>
-              <p>
-                Frosted glass, light and dark mode, your accent colour. No Dock icon, no window to
-                manage.
-              </p>
-            </div>
-          </li>
-          <li>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.4 7.5 9.5 4.3-1.1 7.5-4.9 7.5-9.5V6Z" />
-            </svg>
-            <div>
-              <h3>Stays on your computer</h3>
-              <p>Your history is kept in one local file and is never sent anywhere.</p>
-            </div>
-          </li>
-        </ul>
+          </div>
+        </article>
+
+        <article class="show-row">
+          <div class="show-text">
+            <h2>One shortcut, from anywhere</h2>
+            <p>
+              Copycat opens right next to your cursor, in whatever app you're using. Type to search,
+              press return to copy, and you're back to work. Change the shortcut to any keys you
+              like.
+            </p>
+          </div>
+          <div class="vignette wallpaper" aria-hidden="true">
+            <div class="big-keys shortcut" data-shortcut><kbd>⌘</kbd><kbd>⇧</kbd><kbd>V</kbd></div>
+          </div>
+        </article>
+      </section>
+
+      <section class="extras" aria-label="More">
+        <div>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="10.5" cy="10.5" r="6.5" />
+            <path d="m15.5 15.5 5 5" />
+          </svg>
+          <h3>Search as you type</h3>
+          <p>Newest first, with how long ago you copied each item.</p>
+        </div>
+        <div>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 5.5h16v10H4z" />
+            <path d="M9 19.5h6M12 15.5v4" />
+          </svg>
+          <h3>Made for your Mac</h3>
+          <p>Frosted glass, light and dark mode, your accent colour. No Dock icon.</p>
+        </div>
+        <div>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.4 7.5 9.5 4.3-1.1 7.5-4.9 7.5-9.5V6Z" />
+          </svg>
+          <h3>Stays on your computer</h3>
+          <p>Your history lives in one local file and is never sent anywhere.</p>
+        </div>
       </section>
 
       <section class="keys" aria-labelledby="keys-title">
         <h2 id="keys-title">Keyboard first</h2>
+        <p class="keys-lede">Every one of these works in the demo at the top of the page, too.</p>
         <table class="key-table">
           <tbody>
             <tr>
-              <td><kbd>⌘</kbd><kbd>⇧</kbd><kbd>V</kbd></td>
+              <td>
+                <span class="shortcut" data-shortcut><kbd>⌘</kbd><kbd>⇧</kbd><kbd>V</kbd></span>
+              </td>
               <td>Open or close Copycat, from any app</td>
             </tr>
             <tr>
@@ -177,23 +250,31 @@
               <td>Copy the selected item</td>
             </tr>
             <tr>
-              <td><kbd>⌘</kbd><kbd>P</kbd></td>
-              <td>Pin or unpin it</td>
+              <td><kbd>esc</kbd></td>
+              <td>Close Copycat</td>
             </tr>
             <tr>
-              <td><kbd>⌘</kbd><kbd>⌫</kbd></td>
+              <td>
+                <span class="shortcut"><kbd>⌘</kbd><kbd>P</kbd></span>
+              </td>
+              <td>Pin or unpin the selected item</td>
+            </tr>
+            <tr>
+              <td>
+                <span class="shortcut"><kbd>⌘</kbd><kbd>⌫</kbd></span>
+              </td>
               <td>Delete it</td>
-            </tr>
-            <tr>
-              <td><kbd>⌘</kbd><kbd>,</kbd></td>
-              <td>Settings</td>
             </tr>
           </tbody>
         </table>
         <p class="keys-note">On Windows, use Ctrl instead of ⌘.</p>
       </section>
+    </main>
 
-      <section class="download" id="download" aria-labelledby="download-title">
+    <!-- Closing band: downloads on glass over the wallpaper, mirroring the hero. -->
+    <section class="download wallpaper" id="download" aria-labelledby="download-title">
+      <div class="download-panel">
+        <img class="download-icon" src="/assets/icon-256.png" alt="" width="56" height="56" />
         <h2 id="download-title">Download Copycat</h2>
         <p class="download-version" id="download-version">Latest release</p>
         <ul class="platforms">
@@ -226,8 +307,8 @@
           </li>
         </ul>
 
-        <div class="first-launch">
-          <h3>Opening it the first time</h3>
+        <details class="first-launch">
+          <summary>Opening it the first time</summary>
           <p>
             Copycat isn't signed with an Apple or Microsoft certificate yet, so your computer asks
             before opening it.
@@ -242,9 +323,9 @@
             <strong>Windows:</strong> if SmartScreen says "Windows protected your PC", click
             <strong>More info → Run anyway</strong>.
           </p>
-        </div>
-      </section>
-    </main>
+        </details>
+      </div>
+    </section>
 
     <footer class="site-footer">
       <a href="https://github.com/shricastic/copycat">Source on GitHub</a>
