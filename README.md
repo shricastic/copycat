@@ -180,6 +180,19 @@ git push origin v1.0.1
 The tag must match `package.json` (`v` + version); the workflow fails otherwise. The
 builds are unsigned (see [Packaging](#packaging)).
 
+## Website
+
+`website/` is the project's landing page: plain HTML, CSS and JavaScript with no build
+step. Its download buttons ask the GitHub API for the latest release and link straight to
+its files, so a new release never needs a site update (they fall back to the Releases page
+if GitHub can't be reached). The popup in the hero is a working demo: text copied on the
+page appears in it.
+
+- **Preview locally:** `cd website && python3 -m http.server`, then open http://localhost:8000.
+- **Deploy on Vercel:** import this repository, set **Root Directory** to `website`, and
+  leave the framework preset as **Other** with no build command. `website/vercel.json` adds
+  security headers and the Content Security Policy.
+
 ## Known limitations
 
 - **Text only.** Images, files and rich text formatting are not recorded (the watcher hashes
