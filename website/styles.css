@@ -180,10 +180,15 @@ kbd {
 
 .desktop {
   position: relative;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
-  /* A screen: rounded bottom corners, a little inset from the page edges. */
+  /* A screen that fills the first view: rounded bottom corners at the fold, a little inset
+     from the page edges. svh keeps it to the visible area on mobile browsers. */
+  min-height: 100vh;
+  min-height: 100svh;
   margin: 0 0.75rem;
-  padding-bottom: 6rem;
+  padding-bottom: 3rem;
   border-radius: 0 0 1.75rem 1.75rem;
 }
 
@@ -257,17 +262,25 @@ kbd {
 
 .hero {
   display: grid;
+  flex: 1;
   grid-template-columns: minmax(0, 1fr) 300px;
   gap: 4rem;
-  align-items: start;
+  width: 100%;
   max-width: var(--page);
   margin: 0 auto;
   padding: 0 1.5rem;
 }
 
+/* The headline sits in the middle of the screen; the popup hangs from the menu bar. */
 .hero-copy {
+  align-self: center;
   max-width: 42rem;
-  padding-top: 5rem;
+  padding: 2rem 0;
+}
+
+.demo {
+  align-self: start;
+  margin: 0;
 }
 
 .app-icon {
@@ -316,10 +329,6 @@ h1 {
 }
 
 /* ---------- Copycat UI: popup, rows (shared by the demo and the vignettes) ---------- */
-
-.demo {
-  margin: 0;
-}
 
 .popup,
 .mini-popup {
@@ -886,7 +895,8 @@ main > .keys {
   }
 
   .hero-copy {
-    padding-top: 3.5rem;
+    align-self: start;
+    padding: 3.5rem 0 0;
   }
 
   .demo {
