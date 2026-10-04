@@ -11,6 +11,7 @@ import { join } from 'path'
 import { release } from 'os'
 import { is } from '@electron-toolkit/utils'
 import { IPC, type Appearance, type PopupShownInfo, type PopupView } from '@shared/types'
+import { logEvent } from './log'
 
 const WIDTH = 300
 const HEIGHT = 400
@@ -33,6 +34,14 @@ let lastBlurHideAt = 0
 /** The renderer is recording a shortcut and needs every key combination. */
 let capturingKeys = false
 let quitting = false
+
+/** How the popup was last placed, for the off-screen guard and its diagnostics. */
+interface LastShow {
+  source: 'tray' | 'cursor'
+  computed: Point
+  tray?: Rectangle
+}
+let lastShow: LastShow | null = null
 
 /**
  * Whether the OS draws a translucent material behind the popup. macOS: vibrancy (all
@@ -124,6 +133,14 @@ export function createPopupWindow(): BrowserWindow {
   })
   win.webContents.on('will-navigate', (e) => e.preventDefault())
 
+  // The popup can't be moved by the user (movable: false), so any move while it is visible
+  // comes from the system; make sure that never leaves it off screen. Same after display
+  // changes (monitor plugged/unplugged, resolution or arrangement changed).
+  win.on('move', () => ensureOnScreen('moved'))
+  screen.on('display-added', () => ensureOnScreen('display-added'))
+  screen.on('display-removed', () => ensureOnScreen('display-removed'))
+  screen.on('display-metrics-changed', () => ensureOnScreen('display-metrics-changed'))
+
   // Zoom: Cmd/Ctrl + / - / 0. Handled here rather than via Electron's default menu, whose
   // zoom-out accelerator didn't fire in this menu-less (LSUIElement) app. preventDefault also
   // stops the menu from applying the same zoom a second time. Chromium persists the level.
@@ -196,7 +213,7 @@ export function togglePopupFromTray(trayBounds: Rectangle): void {
     lastBlurHideAt = 0
     return
   }
-  showAt(positionForTray(trayBounds))
+  showAt(positionForTray(trayBounds), 'list', { source: 'tray', tray: trayBounds })
 }
 
 /**
@@ -209,7 +226,7 @@ export function showPopupFromTray(trayBounds: Rectangle, view: PopupView = 'list
     if (view !== 'list') notifyShown(view)
     return
   }
-  showAt(positionForTray(trayBounds), view)
+  showAt(positionForTray(trayBounds), view, { source: 'tray', tray: trayBounds })
 }
 
 /** Global-shortcut handler: open centered near the cursor, or close if already open. */
@@ -219,15 +236,58 @@ export function togglePopupAtCursor(): void {
     hidePopup()
     return
   }
-  showAt(positionNearCursor(screen.getCursorScreenPoint()))
+  showAt(positionNearCursor(screen.getCursorScreenPoint()), 'list', { source: 'cursor' })
 }
 
-function showAt(pos: Point, view: PopupView = 'list'): void {
+function showAt(pos: Point, view: PopupView, context: Omit<LastShow, 'computed'>): void {
   if (!win) return
-  win.setPosition(pos.x, pos.y, false)
+  lastShow = { ...context, computed: pos }
+  // setBounds rather than setPosition: also restores the size if anything changed it.
+  win.setBounds({ x: pos.x, y: pos.y, width: WIDTH, height: HEIGHT })
   win.show()
   win.focus()
   notifyShown(view)
+  // Catch the system placing the window somewhere else as it is shown.
+  setTimeout(() => ensureOnScreen('after-show'), 150)
+}
+
+const fitsIn = (b: Rectangle, area: Rectangle): boolean =>
+  b.x >= area.x &&
+  b.y >= area.y &&
+  b.x + b.width <= area.x + area.width &&
+  b.y + b.height <= area.y + area.height
+
+/**
+ * If the visible popup isn't fully inside some display's work area (or has the wrong size),
+ * put it back: where we last placed it if that still fits, otherwise clamped onto the display
+ * it overlaps most. Every correction is logged, since it means something moved the window
+ * behind our back.
+ */
+function ensureOnScreen(reason: string): void {
+  if (!win || win.isDestroyed() || !win.isVisible()) return
+  const actual = win.getBounds()
+  const displays = screen.getAllDisplays()
+  const sizeOk = actual.width === WIDTH && actual.height === HEIGHT
+  if (sizeOk && displays.some((d) => fitsIn(actual, d.workArea))) return
+
+  const intended = lastShow && { ...lastShow.computed, width: WIDTH, height: HEIGHT }
+  const target =
+    intended && displays.some((d) => fitsIn(intended, d.workArea))
+      ? lastShow!.computed
+      : clampToArea(actual.x, actual.y, screen.getDisplayMatching(actual).workArea)
+
+  logEvent('popup-off-screen', {
+    reason,
+    actual,
+    corrected: target,
+    lastShow,
+    displays: displays.map((d) => ({
+      bounds: d.bounds,
+      workArea: d.workArea,
+      scale: d.scaleFactor
+    }))
+  })
+  win.setBounds({ x: target.x, y: target.y, width: WIDTH, height: HEIGHT })
 }
 
 /** Re-sent on every open so a changed system accent colour is picked up. */
