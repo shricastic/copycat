@@ -29,8 +29,8 @@ export default defineConfig(
     }
   },
   {
-    // Plain-JS Node build scripts: no TS return-type annotations available.
-    files: ['scripts/**/*.mjs'],
+    // Plain-JS files (Node build scripts, the static website): no TS return-type annotations.
+    files: ['scripts/**/*.mjs', 'website/**/*.js'],
     rules: {
       '@typescript-eslint/explicit-function-return-type': 'off'
     }

@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Copycat: clipboard history for your menu bar</title>
+    <meta
+      name="description"
+      content="Copycat keeps everything you copy in your Mac menu bar. Press ⌘⇧V to find it and paste it again. Free for macOS and Windows."
+    />
+    <meta name="theme-color" content="#f4f5f7" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#141518" media="(prefers-color-scheme: dark)" />
+    <meta property="og:title" content="Copycat: clipboard history for your menu bar" />
+    <meta
+      property="og:description"
+      content="Everything you copy, one shortcut away. Free for macOS and Windows."
+    />
+    <meta property="og:image" content="/assets/icon-256.png" />
+    <link rel="icon" type="image/png" href="/assets/favicon-64.png" />
+    <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" />
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="/main.js" defer></script>
+  </head>
+
+  <body>
+    <!-- Hero: a mock desktop with a working Copycat popup. -->
+    <header class="desktop">
+      <div class="menubar" aria-hidden="true">
+        <span class="menubar-app">Copycat</span>
+        <span class="menubar-right">
+          <svg class="menubar-icon" viewBox="0 0 16 16">
+            <rect x="3.25" y="3.25" width="9.5" height="11.5" rx="1.6" />
+            <rect x="5.5" y="1.75" width="5" height="3" rx="0.9" class="fill" />
+            <path d="M6.25 8h3.5M6.25 10.75h2.5" />
+          </svg>
+          <span class="menubar-clock" id="clock">9:41</span>
+        </span>
+      </div>
+
+      <div class="hero">
+        <div class="hero-copy">
+          <img class="app-icon" src="/assets/icon-256.png" alt="" width="72" height="72" />
+          <h1>
+            Everything you copy,<br />
+            one shortcut away.
+          </h1>
+          <p class="lede">
+            Copycat keeps a history of the text you copy, right in your menu bar. Press
+            <span class="shortcut"><kbd>⌘</kbd><kbd>⇧</kbd><kbd>V</kbd></span> in any app to find
+            something and paste it again.
+          </p>
+          <div class="cta">
+            <a class="button primary" id="primary-download" href="#download">Download</a>
+            <a class="cta-alt" id="alt-download" href="#download">Other downloads</a>
+          </div>
+          <p class="cta-note" id="version-note">Free for macOS and Windows.</p>
+        </div>
+
+        <!-- A small, working replica of the app's popup. main.js records what you copy on this page. -->
+        <figure class="demo" aria-label="Copycat demo: copy text on this page to add it">
+          <div class="popup">
+            <div class="popup-search">
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                <circle cx="6.75" cy="6.75" r="4.75" />
+                <path d="M10.25 10.25 14 14" />
+              </svg>
+              <input
+                id="demo-search"
+                type="search"
+                placeholder="Search clipboard history"
+                aria-label="Search the demo history"
+                spellcheck="false"
+              />
+            </div>
+            <ul class="popup-list" id="demo-list" aria-live="polite"></ul>
+            <div class="popup-credit">Made with <span class="heart">♥</span> by Shricastic</div>
+            <div class="popup-footer" aria-hidden="true">
+              <span>Clear all</span><span>Pause</span><span class="spacer"></span><span>Quit</span>
+            </div>
+          </div>
+          <figcaption>Copy any text on this page and watch it appear.</figcaption>
+        </figure>
+      </div>
+    </header>
+
+    <main>
+      <section class="features" aria-labelledby="features-title">
+        <h2 id="features-title">Quiet until you need it</h2>
+        <ul class="feature-list">
+          <li>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="10.5" cy="10.5" r="6.5" />
+              <path d="m15.5 15.5 5 5" />
+            </svg>
+            <div>
+              <h3>Search everything you copied</h3>
+              <p>Newest first, with how long ago you copied it. Start typing to narrow it down.</p>
+            </div>
+          </li>
+          <li>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M14.4 2.9 21.1 9.6l-3.9 1.2-3.5 3.5.5 3.9-8.4-8.4 3.9.5 3.5-3.5Z" />
+              <path d="m8 16-5 5" />
+            </svg>
+            <div>
+              <h3>Pin what you reuse</h3>
+              <p>
+                Pinned items stay at the top and are never cleared, even when the history fills up.
+              </p>
+            </div>
+          </li>
+          <li>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="5" y="10.5" width="14" height="10" rx="2" />
+              <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" />
+            </svg>
+            <div>
+              <h3>Passwords stay out</h3>
+              <p>
+                Items your password manager marks as private are never recorded. Pause recording any
+                time.
+              </p>
+            </div>
+          </li>
+          <li>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="2.5" y="6" width="19" height="12" rx="2.5" />
+              <path d="M6.5 10h1M10 10h1M13.5 10h1M17 10h.5M7.5 14h9" />
+            </svg>
+            <div>
+              <h3>One shortcut, from anywhere</h3>
+              <p>
+                <span class="shortcut"><kbd>⌘</kbd><kbd>⇧</kbd><kbd>V</kbd></span> opens Copycat
+                next to your cursor. Change it to any keys you like.
+              </p>
+            </div>
+          </li>
+          <li>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 5.5h16v10H4z" />
+              <path d="M9 19.5h6M12 15.5v4" />
+            </svg>
+            <div>
+              <h3>Feels like part of your Mac</h3>
+              <p>
+                Frosted glass, light and dark mode, your accent colour. No Dock icon, no window to
+                manage.
+              </p>
+            </div>
+          </li>
+          <li>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.4 7.5 9.5 4.3-1.1 7.5-4.9 7.5-9.5V6Z" />
+            </svg>
+            <div>
+              <h3>Stays on your computer</h3>
+              <p>Your history is kept in one local file and is never sent anywhere.</p>
+            </div>
+          </li>
+        </ul>
+      </section>
+
+      <section class="keys" aria-labelledby="keys-title">
+        <h2 id="keys-title">Keyboard first</h2>
+        <table class="key-table">
+          <tbody>
+            <tr>
+              <td><kbd>⌘</kbd><kbd>⇧</kbd><kbd>V</kbd></td>
+              <td>Open or close Copycat, from any app</td>
+            </tr>
+            <tr>
+              <td><kbd>↑</kbd><kbd>↓</kbd></td>
+              <td>Move through your history</td>
+            </tr>
+            <tr>
+              <td><kbd>↩</kbd></td>
+              <td>Copy the selected item</td>
+            </tr>
+            <tr>
+              <td><kbd>⌘</kbd><kbd>P</kbd></td>
+              <td>Pin or unpin it</td>
+            </tr>
+            <tr>
+              <td><kbd>⌘</kbd><kbd>⌫</kbd></td>
+              <td>Delete it</td>
+            </tr>
+            <tr>
+              <td><kbd>⌘</kbd><kbd>,</kbd></td>
+              <td>Settings</td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="keys-note">On Windows, use Ctrl instead of ⌘.</p>
+      </section>
+
+      <section class="download" id="download" aria-labelledby="download-title">
+        <h2 id="download-title">Download Copycat</h2>
+        <p class="download-version" id="download-version">Latest release</p>
+        <ul class="platforms">
+          <li data-platform="mac-arm64">
+            <div>
+              <h3>Mac with Apple silicon</h3>
+              <p>M1 and later</p>
+            </div>
+            <a class="button" href="https://github.com/shricastic/copycat/releases/latest"
+              >Download .dmg</a
+            >
+          </li>
+          <li data-platform="mac-x64">
+            <div>
+              <h3>Mac with Intel</h3>
+              <p>Older Macs</p>
+            </div>
+            <a class="button" href="https://github.com/shricastic/copycat/releases/latest"
+              >Download .dmg</a
+            >
+          </li>
+          <li data-platform="win-x64">
+            <div>
+              <h3>Windows</h3>
+              <p>Windows 10 and 11, 64-bit</p>
+            </div>
+            <a class="button" href="https://github.com/shricastic/copycat/releases/latest"
+              >Download installer</a
+            >
+          </li>
+        </ul>
+
+        <div class="first-launch">
+          <h3>Opening it the first time</h3>
+          <p>
+            Copycat isn't signed with an Apple or Microsoft certificate yet, so your computer asks
+            before opening it.
+          </p>
+          <p>
+            <strong>Mac:</strong> drag Copycat to Applications and open it. When macOS says it can't
+            verify the developer, go to
+            <strong>System Settings → Privacy &amp; Security</strong> and click
+            <strong>Open Anyway</strong>. You only do this once.
+          </p>
+          <p>
+            <strong>Windows:</strong> if SmartScreen says "Windows protected your PC", click
+            <strong>More info → Run anyway</strong>.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <a href="https://github.com/shricastic/copycat">Source on GitHub</a>
+      <a href="https://github.com/shricastic/copycat/releases">All releases</a>
+      <span
+        >Made with <span class="heart">♥</span> by
+        <a href="https://github.com/shricastic">Shricastic</a></span
+      >
+    </footer>
+  </body>
+</html>
