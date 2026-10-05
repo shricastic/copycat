@@ -37,6 +37,8 @@
 
   --measure: 34rem;
   --page: 70rem;
+  /* The hero (menu bar, headline, video, popup) is wider than the rest of the page. */
+  --hero: 80rem;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -198,7 +200,7 @@ kbd {
   justify-content: space-between;
   height: 30px;
   /* Content lines up with the page edges, so the tray icon sits right above the popup. */
-  padding: 0 max(1rem, calc((100% - var(--page)) / 2 + 1.5rem));
+  padding: 0 max(1rem, calc((100% - var(--hero)) / 2 + 1.5rem));
   background: var(--menubar);
   -webkit-backdrop-filter: blur(20px) saturate(1.6);
   backdrop-filter: blur(20px) saturate(1.6);
@@ -263,36 +265,152 @@ kbd {
 .hero {
   display: grid;
   flex: 1;
-  grid-template-columns: minmax(0, 1fr) 300px;
-  gap: 4rem;
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.25fr);
+  gap: 3.5rem;
+  align-items: center;
   width: 100%;
-  max-width: var(--page);
+  /* Sit slightly above the geometric centre, which reads as centred. */
+  padding-bottom: 4rem;
+  /* Wider than the rest of the page, so the headline and the video both get room. */
+  max-width: var(--hero);
   margin: 0 auto;
   padding: 0 1.5rem;
 }
 
-/* The headline sits in the middle of the screen; the popup hangs from the menu bar. */
+/* Headline and video sit in the middle of the screen; the popup hangs from the menu bar. */
 .hero-copy {
-  align-self: center;
-  max-width: 42rem;
+  max-width: 34rem;
   padding: 2rem 0;
 }
 
-.demo {
-  align-self: start;
+/* "Try the menu bar demo": a small glass button that opens the interactive popup. */
+.demo-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 1.1rem;
+  padding: 0.45rem 0.55rem 0.45rem 0.9rem;
+  border: 0.5px solid var(--glass-edge);
+  border-radius: 999px;
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(16px) saturate(1.6);
+  backdrop-filter: blur(16px) saturate(1.6);
+  color: var(--ink);
+  font: 500 0.88rem/1.2 var(--font);
+  cursor: pointer;
+}
+
+.demo-chip:hover {
+  border-color: var(--accent);
+}
+
+.demo-chip kbd {
+  font-size: 0.78em;
+}
+
+/* The real app, framed as a Mac window on the desktop. */
+.hero-video {
+  position: relative;
   margin: 0;
+  overflow: hidden;
+  border: 0.5px solid var(--glass-edge);
+  border-radius: 14px;
+  background: #000;
+  box-shadow:
+    0 0 140px -30px rgb(91 140 255 / 0.55),
+    0 40px 90px -30px rgb(10 20 80 / 0.65),
+    var(--glass-shadow);
+}
+
+.window-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  backdrop-filter: blur(20px) saturate(1.6);
+  border-bottom: 0.5px solid var(--glass-edge);
+}
+
+.traffic {
+  position: absolute;
+  left: 12px;
+  display: flex;
+  gap: 7px;
+}
+
+.traffic i {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #ff5f57;
+}
+
+.traffic i:nth-child(2) {
+  background: #febc2e;
+}
+
+.traffic i:nth-child(3) {
+  background: #28c840;
+}
+
+.window-title {
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* One quiet load-in: the headline, then the window, rise into place. */
+@media (prefers-reduced-motion: no-preference) {
+  .hero-copy,
+  .hero-video {
+    animation: rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+
+  .hero-video {
+    animation-delay: 0.12s;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
+/* The interactive popup: an overlay under the tray icon, aligned with the page edges. */
+.popup-anchor {
+  position: absolute;
+  top: 30px;
+  right: 0;
+  left: 0;
+  z-index: 5;
+  display: flex;
+  justify-content: flex-end;
+  max-width: var(--hero);
+  margin: 0 auto;
+  padding: 0 1.5rem;
+  pointer-events: none;
+}
+
+.demo {
+  margin: 0;
+  pointer-events: auto;
 }
 
 .app-icon {
   display: block;
-  width: 72px;
-  height: 72px;
-  margin-bottom: 1.75rem;
+  width: 60px;
+  height: 60px;
+  margin-bottom: 1.5rem;
   filter: drop-shadow(0 10px 18px rgb(20 40 120 / 0.28));
 }
 
 h1 {
-  font-size: clamp(2.6rem, 5.6vw, 4.2rem);
+  font-size: clamp(2.3rem, 3.5vw, 3.4rem);
   font-weight: 720;
   letter-spacing: -0.038em;
   line-height: 1.02;
@@ -300,7 +418,7 @@ h1 {
 
 .lede {
   max-width: var(--measure);
-  margin-top: 1.4rem;
+  margin-top: 1.2rem;
   color: var(--ink-2);
   font-size: 1.2rem;
   line-height: 1.5;
@@ -315,7 +433,7 @@ h1 {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.75rem 1.5rem;
-  margin-top: 2.25rem;
+  margin-top: 2rem;
 }
 
 .cta-alt {
@@ -589,6 +707,57 @@ h1 {
 
 .demo figcaption kbd {
   font-size: 0.78em;
+}
+
+/* ---------- product demo video (hero) ---------- */
+
+.product-demo {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: #000;
+}
+
+/* Pause/play for the autoplaying demo (motion longer than 5 s must be stoppable). */
+.video-toggle {
+  position: absolute;
+  right: 0.75rem;
+  bottom: 0.75rem;
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  place-items: center;
+  border: 0.5px solid var(--glass-edge);
+  border-radius: 50%;
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: blur(16px) saturate(1.6);
+  backdrop-filter: blur(16px) saturate(1.6);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.video-toggle svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.video-toggle .icon-pause {
+  fill: none;
+}
+
+.video-toggle .icon-play,
+.video-toggle.paused .icon-pause {
+  display: none;
+}
+
+.video-toggle.paused .icon-play {
+  display: block;
 }
 
 /* ---------- feature rows with vignettes ---------- */
@@ -921,12 +1090,7 @@ main > .keys {
   }
 
   .hero-copy {
-    align-self: start;
     padding: 3.5rem 0 0;
-  }
-
-  .demo {
-    justify-self: center;
   }
 
   .desktop {
