@@ -6,14 +6,14 @@
     <title>Copycat: clipboard history for your menu bar</title>
     <meta
       name="description"
-      content="Copycat keeps everything you copy in your Mac menu bar. Press ⌘⇧V to find it and paste it again. Free for macOS and Windows."
+      content="Copycat keeps everything you copy in your Mac menu bar. Press ⌘⇧V to find it and paste it again. Free for macOS, Windows and Linux."
     />
     <meta name="theme-color" content="#eef3fe" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#0d1222" media="(prefers-color-scheme: dark)" />
     <meta property="og:title" content="Copycat: clipboard history for your menu bar" />
     <meta
       property="og:description"
-      content="Everything you copy, one shortcut away. Free for macOS and Windows."
+      content="Everything you copy, one shortcut away. Free for macOS, Windows and Linux."
     />
     <meta property="og:image" content="/assets/icon-256.png" />
     <link rel="icon" type="image/png" href="/assets/favicon-64.png" />
@@ -61,7 +61,7 @@
             <a class="button primary" id="primary-download" href="#download">Download</a>
             <a class="cta-alt" id="alt-download" href="#download">Other downloads</a>
           </div>
-          <p class="cta-note" id="version-note">Free for macOS and Windows.</p>
+          <p class="cta-note" id="version-note">Free for macOS, Windows and Linux.</p>
           <button class="demo-chip" id="demo-chip" type="button" aria-controls="demo-popup">
             Try the menu bar demo
             <span class="shortcut" data-shortcut><kbd>⌘</kbd><kbd>⇧</kbd><kbd>V</kbd></span>
@@ -344,6 +344,24 @@
               >Download installer</a
             >
           </li>
+          <li data-platform="linux-appimage">
+            <div>
+              <h3>Linux</h3>
+              <p>Most distributions, 64-bit. New, not yet tested</p>
+            </div>
+            <a class="button" href="https://github.com/shricastic/copycat/releases/latest"
+              >Download AppImage</a
+            >
+          </li>
+          <li data-platform="linux-deb">
+            <div>
+              <h3>Debian and Ubuntu</h3>
+              <p>64-bit .deb package. New, not yet tested</p>
+            </div>
+            <a class="button" href="https://github.com/shricastic/copycat/releases/latest"
+              >Download .deb</a
+            >
+          </li>
         </ul>
 
         <!-- Mac walkthrough: nothing is downloaded until someone presses play (preload="none"). -->
@@ -382,6 +400,12 @@
           <p>
             <strong>Windows:</strong> if SmartScreen says "Windows protected your PC", click
             <strong>More info → Run anyway</strong>.
+          </p>
+          <p>
+            <strong>Linux:</strong> make the AppImage executable (<code
+              >chmod +x copycat-*.AppImage</code
+            >) and run it, or install the .deb with
+            <code>sudo apt install ./copycat_*_amd64.deb</code>.
           </p>
         </details>
       </div>

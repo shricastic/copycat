@@ -354,13 +354,16 @@ if (demoVideo && (prefersReducedMotion || saveData || !('IntersectionObserver' i
 const PLATFORM_ASSETS = {
   'mac-arm64': /-arm64\.dmg$/,
   'mac-x64': /-x64\.dmg$/,
-  'win-x64': /-setup\.exe$/
+  'win-x64': /-setup\.exe$/,
+  'linux-appimage': /\.AppImage$/,
+  'linux-deb': /\.deb$/
 }
 
 const PLATFORM_LABELS = {
   'mac-arm64': 'Download for Mac',
   'mac-x64': 'Download for Mac (Intel)',
-  'win-x64': 'Download for Windows'
+  'win-x64': 'Download for Windows',
+  'linux-appimage': 'Download for Linux'
 }
 
 /**
@@ -373,6 +376,8 @@ async function detectPlatform() {
   const uaData = navigator.userAgentData
   const platform = uaData?.platform ?? ''
   if (/Windows/i.test(platform) || /Windows NT/.test(ua)) return 'win-x64'
+  // Linux desktops get the AppImage (runs on most distributions); Android isn't a target.
+  if ((/Linux/i.test(platform) || /Linux/.test(ua)) && !/Android/i.test(ua)) return 'linux-appimage'
   if (!/mac/i.test(platform) && !/Macintosh/.test(ua)) return null
   // iPhone/iPad (iPadOS also reports Macintosh): no desktop app to offer.
   if (navigator.maxTouchPoints > 1) return null
@@ -404,7 +409,7 @@ async function setUpDownloads() {
       tag.textContent = 'This computer'
       row.append(tag)
     }
-    alt.textContent = detected.startsWith('mac') ? 'Intel Mac or Windows' : 'Download for Mac'
+    alt.textContent = detected.startsWith('mac') ? 'Other downloads' : 'Other platforms'
   }
 
   // Point every button at the latest release's files. If GitHub can't be reached, the
@@ -423,7 +428,7 @@ async function setUpDownloads() {
 
   const version = release.tag_name?.replace(/^v/, '')
   document.getElementById('version-note').textContent =
-    `Version ${version}. Free for macOS and Windows.`
+    `Version ${version}. Free for macOS, Windows and Linux.`
   document.getElementById('download-version').textContent = `Version ${version}`
 
   for (const [key, pattern] of Object.entries(PLATFORM_ASSETS)) {
