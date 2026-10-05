@@ -51,4 +51,20 @@ mac:
   notarize: false
 dmg:
   artifactName: ${name}-${version}-${arch}.${ext}
+# Linux: built in CI, not yet tested on Linux (tray and login-item behaviour need work there).
+linux:
+  target:
+    - target: AppImage
+      arch: [x64]
+    - target: deb
+      arch: [x64]
+  executableName: copycat
+  category: Utility
+  synopsis: Clipboard history in your system tray
+  # .deb requires a maintainer with an email address.
+  maintainer: Shricastic <shricastic@users.noreply.github.com>
+appImage:
+  artifactName: ${name}-${version}-${arch}.${ext}
+deb:
+  artifactName: ${name}_${version}_amd64.${ext}
 npmRebuild: false
