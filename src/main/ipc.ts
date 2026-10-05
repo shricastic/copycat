@@ -3,7 +3,14 @@ import { existsSync } from 'fs'
 import { dirname } from 'path'
 import { IPC, type AppState, type Settings, type UpdateSettingsResult } from '@shared/types'
 import { isValidAccelerator } from '@shared/accelerator'
-import { getAppearance, getPopupWindow, hidePopup, setKeyboardCapture } from './window'
+import {
+  beginDrag,
+  endDrag,
+  getAppearance,
+  getPopupWindow,
+  hidePopup,
+  setKeyboardCapture
+} from './window'
 import { isValidMaxHistory, type Store } from './store'
 import type { ClipboardWatcher } from './clipboardWatcher'
 import type { SettingsController } from './settings'
@@ -128,6 +135,8 @@ export function registerIpc(deps: IpcDeps): void {
   })
 
   handle(IPC.hidePopup, () => hidePopup())
+  handle(IPC.beginDrag, () => beginDrag())
+  handle(IPC.endDrag, () => endDrag())
   handle(IPC.showDataFile, () => {
     // Before the first save there is no file yet; show the folder instead.
     const file = store.getFilePath()

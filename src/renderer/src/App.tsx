@@ -26,6 +26,7 @@ function App(): React.JSX.Element {
   const [selected, setSelected] = useState(0)
   const [now, setNow] = useState(() => Date.now())
   const [confirmClear, setConfirmClear] = useState(false)
+  const [dragging, setDragging] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLUListElement>(null)
   // Hover selects a row only after the pointer has really moved. Chromium also sends synthetic
@@ -218,8 +219,32 @@ function App(): React.JSX.Element {
 
   const paused = settings?.paused ?? false
 
+  // Drag to move: mouse down on the grab bar or the footer's empty space; main moves the
+  // window with the cursor until the button is released. Pointer capture keeps the release
+  // coming to us even if the cursor leaves the popup.
+  const dragHandlers = {
+    onPointerDown: (e: React.PointerEvent<HTMLElement>): void => {
+      if (e.button !== 0 || (e.target as HTMLElement).closest('button')) return
+      e.preventDefault()
+      e.currentTarget.setPointerCapture(e.pointerId)
+      setDragging(true)
+      api.beginDrag()
+    },
+    onPointerUp: (e: React.PointerEvent<HTMLElement>): void => {
+      if (!dragging) return
+      e.currentTarget.releasePointerCapture(e.pointerId)
+    },
+    onLostPointerCapture: (): void => {
+      if (!dragging) return
+      setDragging(false)
+      api.endDrag()
+    }
+  }
+
   return (
-    <div className="app">
+    <div className={`app${dragging ? ' dragging' : ''}`}>
+      {/* Grab bar: drag here (or on the footer's empty space) to move the popup. */}
+      <div className="grabber" aria-hidden="true" {...dragHandlers} />
       {view === 'list' ? (
         <header className="header">
           <svg className="search-icon" viewBox="0 0 16 16" aria-hidden="true">
@@ -310,7 +335,7 @@ function App(): React.JSX.Element {
         </div>
       </div>
 
-      <footer className="footer">
+      <footer className="footer" {...dragHandlers}>
         <div className="footer-group">
           <button
             className={`link${confirmClear ? ' danger' : ''}`}

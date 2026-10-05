@@ -42,6 +42,8 @@ export const IPC = {
   updateSettings: 'settings:update',
   setShortcutRecording: 'shortcut:recording',
   hidePopup: 'popup:hide',
+  beginDrag: 'popup:dragBegin',
+  endDrag: 'popup:dragEnd',
   showDataFile: 'app:showDataFile',
   quit: 'app:quit',
   // main -> renderer (events)
@@ -106,6 +108,9 @@ export interface CopycatApi {
   /** Suspend the global shortcut while the user records a new one (so it doesn't fire). */
   setShortcutRecording(active: boolean): Promise<void>
   hidePopup(): Promise<void>
+  /** Mouse down / up on the popup's grab bar or footer: main moves the window meanwhile. */
+  beginDrag(): Promise<void>
+  endDrag(): Promise<void>
   /** Reveal the history file in Finder / Explorer. */
   showDataFile(): Promise<void>
   quit(): Promise<void>
