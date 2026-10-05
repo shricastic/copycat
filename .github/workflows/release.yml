@@ -21,6 +21,8 @@ jobs:
             target: mac
           - os: windows-latest # x64 NSIS installer
             target: win
+          - os: ubuntu-latest # x64 AppImage and .deb
+            target: linux
     runs-on: ${{ matrix.os }}
     env:
       # Builds are unsigned; don't let electron-builder search the runner's keychain.
@@ -57,6 +59,8 @@ jobs:
           path: |
             dist/*.dmg
             dist/*.exe
+            dist/*.AppImage
+            dist/*.deb
           if-no-files-found: error
 
   release:
