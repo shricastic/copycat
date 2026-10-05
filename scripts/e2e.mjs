@@ -311,6 +311,58 @@ try {
   )
   check('off-screen correction is logged', guard.logged)
 
+  // Dragging: beginDrag/dragStep/endDrag (driven by the renderer's grab bar and footer). While
+  // dragging, moves aren't corrected; when it ends, the popup stays where it was dropped but
+  // fully on screen. The next open goes back under the tray icon.
+  const drag = await main.evaluate(`${M}
+    const tray = h.getTray().getBounds();
+    w.togglePopupFromTray(tray); await new Promise(r => setTimeout(r, 300));
+    const placed = win.getBounds();
+    const wa = screen.getDisplayMatching(placed).workArea;
+    const grab = { x: placed.x + 150, y: placed.y + 5 };          // on the grab bar
+    w.beginDrag(grab);
+    w.dragStep({ x: wa.x + 350, y: wa.y + 155 });                  // mid-drag, on screen
+    const midDrag = win.getBounds();
+    w.dragStep({ x: wa.x + wa.width + 30, y: wa.y + 265 });        // dragged partly off the right edge
+    const beforeRelease = win.getBounds();
+    w.endDrag();
+    const settled = win.getBounds();
+    w.hidePopup(); await new Promise(r => setTimeout(r, 200));
+    w.togglePopupFromTray(tray); await new Promise(r => setTimeout(r, 300));
+    const reopened = win.getBounds();
+    const cursors = await win.webContents.executeJavaScript(
+      "({ grabber: getComputedStyle(document.querySelector('.grabber')).cursor, footer: getComputedStyle(document.querySelector('.footer')).cursor, footerButton: getComputedStyle(document.querySelector('.footer button:not(:disabled)')).cursor })");
+    w.hidePopup();
+    return { placed, wa, midDrag, beforeRelease, settled, reopened, cursors }`)
+  check(
+    'grab cursor on the grab bar and footer, pointer on footer buttons',
+    drag.cursors.grabber === 'grab' &&
+      drag.cursors.footer === 'grab' &&
+      drag.cursors.footerButton === 'pointer',
+    JSON.stringify(drag.cursors)
+  )
+  check(
+    'window follows the drag',
+    drag.midDrag.x === drag.wa.x + 200 && drag.midDrag.y === drag.wa.y + 150,
+    JSON.stringify(drag.midDrag)
+  )
+  check(
+    'not corrected while dragging, even partly off screen',
+    drag.beforeRelease.x === drag.wa.x + drag.wa.width - 120,
+    JSON.stringify(drag.beforeRelease)
+  )
+  check(
+    'released partly off screen: pulled fully on screen where it was dropped',
+    drag.settled.x === drag.wa.x + drag.wa.width - drag.settled.width &&
+      drag.settled.y === drag.wa.y + 260,
+    JSON.stringify({ released: drag.beforeRelease, settled: drag.settled })
+  )
+  check(
+    'next open goes back under the tray icon',
+    drag.reopened.x === drag.placed.x && drag.reopened.y === drag.placed.y,
+    JSON.stringify({ placed: drag.placed, reopened: drag.reopened })
+  )
+
   const displays = await main.evaluate(`${M} return screen.getAllDisplays().map(d => d.workArea)`)
   console.log(`info  displays: ${JSON.stringify(displays)}`)
 

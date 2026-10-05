@@ -43,6 +43,9 @@ interface LastShow {
 }
 let lastShow: LastShow | null = null
 
+/** An active user drag: where the cursor grabbed the window, and the follow timer. */
+let drag: { grab: Point; timer: ReturnType<typeof setInterval> | null } | null = null
+
 /**
  * Whether the OS draws a translucent material behind the popup. macOS: vibrancy (all
  * supported versions). Windows: backgroundMaterial needs Windows 11 22H2 (build 22621).
@@ -90,6 +93,8 @@ export function createPopupWindow(): BrowserWindow {
     show: false,
     frame: false,
     resizable: false,
+    // Dragged by the renderer's grab bar / footer through beginDrag/endDrag (not CSS drag
+    // regions: those can't show a grab cursor on macOS), so the OS never moves it itself.
     movable: false,
     minimizable: false,
     maximizable: false,
@@ -133,10 +138,13 @@ export function createPopupWindow(): BrowserWindow {
   })
   win.webContents.on('will-navigate', (e) => e.preventDefault())
 
-  // The popup can't be moved by the user (movable: false), so any move while it is visible
-  // comes from the system; make sure that never leaves it off screen. Same after display
-  // changes (monitor plugged/unplugged, resolution or arrangement changed).
-  win.on('move', () => ensureOnScreen('moved'))
+  // Moves while visible: a user drag (beginDrag..endDrag) is left alone until it ends, then the
+  // popup is kept fully on that screen. Any other move comes from the system and must never
+  // leave it off screen. Same after display changes (monitor plugged/unplugged, resolution).
+  win.on('move', () => {
+    if (!drag) ensureOnScreen('moved')
+  })
+  win.on('hide', () => endDrag())
   screen.on('display-added', () => ensureOnScreen('display-added'))
   screen.on('display-removed', () => ensureOnScreen('display-removed'))
   screen.on('display-metrics-changed', () => ensureOnScreen('display-metrics-changed'))
@@ -241,6 +249,8 @@ export function togglePopupAtCursor(): void {
 
 function showAt(pos: Point, view: PopupView, context: Omit<LastShow, 'computed'>): void {
   if (!win) return
+  // Every open starts from the tray (or cursor) position; a previous drag isn't remembered.
+  endDrag()
   lastShow = { ...context, computed: pos }
   // setBounds rather than setPosition: also restores the size if anything changed it.
   win.setBounds({ x: pos.x, y: pos.y, width: WIDTH, height: HEIGHT })
@@ -288,6 +298,50 @@ function ensureOnScreen(reason: string): void {
     }))
   })
   win.setBounds({ x: target.x, y: target.y, width: WIDTH, height: HEIGHT })
+}
+
+/**
+ * A user drag has finished. Keep the popup where it was dropped, but fully on the screen it
+ * mostly covers, and treat that as its placed position from now on (so later system moves
+ * are corrected back to it, not to the tray).
+ */
+function settleAfterDrag(): void {
+  if (!win || win.isDestroyed() || !win.isVisible()) return
+  const actual = win.getBounds()
+  const target = clampToArea(actual.x, actual.y, screen.getDisplayMatching(actual).workArea)
+  if (target.x !== actual.x || target.y !== actual.y) {
+    win.setBounds({ x: target.x, y: target.y, width: WIDTH, height: HEIGHT })
+  }
+  if (lastShow) lastShow = { ...lastShow, computed: target }
+}
+
+/**
+ * Start dragging the popup (mouse down on the grab bar or footer). The window follows the
+ * cursor, keeping the point that was grabbed under it, until endDrag. `at` replaces the live
+ * cursor and disables the follow timer; it exists for scripted checks (dragStep moves it).
+ */
+export function beginDrag(at?: Point): void {
+  if (!win || !win.isVisible() || drag) return
+  const cursor = at ?? screen.getCursorScreenPoint()
+  const [x, y] = win.getPosition()
+  drag = { grab: { x: cursor.x - x, y: cursor.y - y }, timer: null }
+  if (!at) drag.timer = setInterval(() => dragStep(screen.getCursorScreenPoint()), 16)
+}
+
+export function dragStep(cursor: Point): void {
+  if (!win || !drag) return
+  const x = Math.round(cursor.x - drag.grab.x)
+  const y = Math.round(cursor.y - drag.grab.y)
+  const [cx, cy] = win.getPosition()
+  if (x !== cx || y !== cy) win.setPosition(x, y, false)
+}
+
+/** Mouse released (or the popup hid): stop following and settle where it was dropped. */
+export function endDrag(): void {
+  if (!drag) return
+  if (drag.timer) clearInterval(drag.timer)
+  drag = null
+  settleAfterDrag()
 }
 
 /** Re-sent on every open so a changed system accent colour is picked up. */

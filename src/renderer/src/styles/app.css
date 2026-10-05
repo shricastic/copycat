@@ -127,11 +127,45 @@ button {
 
 /* ---------- search ---------- */
 
+/* Drag handle at the top of the popup: open hand on hover, closed hand while dragging. */
+.grabber {
+  display: grid;
+  flex: none;
+  height: 10px;
+  place-items: center;
+  cursor: grab;
+  touch-action: none;
+}
+
+.grabber::before {
+  content: '';
+  width: 32px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--separator);
+  transition: background-color 0.15s;
+}
+
+.app:hover .grabber::before {
+  background: var(--text-2);
+}
+
+.grabber:hover::before,
+.app.dragging .grabber::before {
+  background: var(--text);
+}
+
+/* While dragging, the closed hand shows wherever the pointer is. */
+.app.dragging,
+.app.dragging * {
+  cursor: grabbing !important;
+}
+
 .header {
   display: flex;
   align-items: center;
   gap: 7px;
-  padding: 9px 12px 8px;
+  padding: 3px 12px 8px;
   border-bottom: 1px solid var(--separator);
 }
 
@@ -353,6 +387,9 @@ button {
   padding: 4px 6px;
   border-top: 1px solid var(--separator);
   background: var(--footer);
+  /* The footer's empty space also drags the popup (open hand); its buttons stay clickable. */
+  cursor: grab;
+  touch-action: none;
 }
 
 .footer-group {
