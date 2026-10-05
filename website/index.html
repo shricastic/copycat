@@ -32,7 +32,7 @@
             class="menubar-icon"
             id="tray-icon"
             aria-label="Open or close the Copycat demo"
-            aria-expanded="true"
+            aria-expanded="false"
             aria-controls="demo-popup"
           >
             <svg viewBox="0 0 16 16" aria-hidden="true">
@@ -62,11 +62,55 @@
             <a class="cta-alt" id="alt-download" href="#download">Other downloads</a>
           </div>
           <p class="cta-note" id="version-note">Free for macOS and Windows.</p>
+          <button class="demo-chip" id="demo-chip" type="button" aria-controls="demo-popup">
+            Try the menu bar demo
+            <span class="shortcut" data-shortcut><kbd>⌘</kbd><kbd>⇧</kbd><kbd>V</kbd></span>
+          </button>
         </div>
 
-        <!-- A working replica of the app's popup; main.js drives it. -->
+        <!-- The real app in a real workflow. Autoplays muted and looping while on screen; main.js
+             handles that, the pause button, and reduced-motion / data-saver visitors. -->
+        <figure class="hero-video">
+          <div class="window-bar" aria-hidden="true">
+            <span class="traffic"><i></i><i></i><i></i></span>
+            <span class="window-title">Copycat on macOS</span>
+          </div>
+          <video
+            class="product-demo"
+            id="product-demo"
+            muted
+            loop
+            playsinline
+            preload="none"
+            width="1920"
+            height="1248"
+            poster="/assets/demo-video-poster.jpg"
+            aria-label="Copycat demo: copying text on a web page, picking it from the Copycat menu bar popup, pasting it into the address bar, and turning on Launch at login in Settings"
+          >
+            <source src="/assets/demo-video.mp4" type="video/mp4" />
+          </video>
+          <button
+            class="video-toggle"
+            id="product-demo-toggle"
+            type="button"
+            aria-label="Pause video"
+            hidden
+          >
+            <svg class="icon-pause" viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M5.5 3.5v9M10.5 3.5v9" />
+            </svg>
+            <svg class="icon-play" viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M5 3.2v9.6L12.8 8Z" />
+            </svg>
+          </button>
+        </figure>
+      </div>
+
+      <div class="popup-anchor">
+        <!-- A working replica of the app's popup, hanging from the tray icon. Closed until
+               ⌘⇧V, a click on the icon, or a copy on the page; main.js drives it. -->
         <figure class="demo" aria-label="Copycat demo">
-          <div class="popup" id="demo-popup" tabindex="-1">
+          <div class="popup closed" id="demo-popup" tabindex="-1">
             <div class="popup-search">
               <svg viewBox="0 0 16 16" aria-hidden="true">
                 <circle cx="6.75" cy="6.75" r="4.75" />
@@ -87,11 +131,6 @@
               <span>Clear all</span><span>Pause</span><span class="spacer"></span><span>Quit</span>
             </div>
           </div>
-          <figcaption id="demo-caption">
-            Copy any text on this page and it shows up here. Press
-            <span class="shortcut" data-shortcut><kbd>⌘</kbd><kbd>⇧</kbd><kbd>V</kbd></span> to open
-            and close it.
-          </figcaption>
         </figure>
       </div>
     </header>

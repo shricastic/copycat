@@ -200,9 +200,12 @@ function record(text) {
 }
 
 // Anything copied on this page lands in the demo, as it would in the real app.
+// The popup opens (without taking focus) so the visitor sees their copy arrive.
 document.addEventListener('copy', () => {
   const text = (document.getSelection()?.toString() ?? '').trim()
-  if (text) record(text)
+  if (!text) return
+  if (!isOpen()) setOpen(true, { focus: false })
+  record(text)
 })
 
 // Picking a row puts it on the real clipboard, like choosing an item in Copycat.
@@ -227,7 +230,8 @@ function isOpen() {
   return !popup.classList.contains('closed')
 }
 
-function setOpen(open) {
+/** Open or close. `focus: false` shows it without moving focus (used when text is copied). */
+function setOpen(open, { focus = true } = {}) {
   popup.classList.toggle('closed', !open)
   trayIcon.setAttribute('aria-expanded', String(open))
   if (open) {
@@ -235,13 +239,15 @@ function setOpen(open) {
     selected = 0
     render()
     list.scrollTop = 0
-    search.focus({ preventScroll: true })
+    if (focus) search.focus({ preventScroll: true })
   } else if (popup.contains(document.activeElement)) {
     trayIcon.focus({ preventScroll: true })
   }
 }
 
 trayIcon.addEventListener('click', () => setOpen(!isOpen()))
+// The "Try the menu bar demo" button: same as the tray icon, for mouse and touch visitors.
+document.getElementById('demo-chip')?.addEventListener('click', () => setOpen(!isOpen()))
 
 document.addEventListener('keydown', (e) => {
   const mod = isWindows ? e.ctrlKey : e.metaKey
@@ -297,6 +303,51 @@ setInterval(() => {
   }
 }, 1000)
 render()
+
+// ---------- product demo video ----------
+
+// Autoplay (muted, looping) only while the video is on screen, so it isn't downloaded or
+// decoded for visitors who never scroll to it. Visitors who asked for reduced motion or
+// data saving get a normal video with controls instead.
+const demoVideo = document.getElementById('product-demo')
+const demoToggle = document.getElementById('product-demo-toggle')
+const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+const saveData = navigator.connection?.saveData === true
+
+if (demoVideo && (prefersReducedMotion || saveData || !('IntersectionObserver' in window))) {
+  demoVideo.controls = true
+} else if (demoVideo) {
+  let pausedByUser = false
+  demoToggle.hidden = false
+
+  const syncToggle = () => {
+    demoToggle.classList.toggle('paused', demoVideo.paused)
+    demoToggle.setAttribute('aria-label', demoVideo.paused ? 'Play video' : 'Pause video')
+  }
+  demoVideo.addEventListener('play', syncToggle)
+  demoVideo.addEventListener('pause', syncToggle)
+
+  const play = () =>
+    demoVideo.play().catch(() => {
+      // Autoplay refused by the browser: fall back to normal controls.
+      demoVideo.controls = true
+      demoToggle.hidden = true
+    })
+
+  new IntersectionObserver(
+    ([entry]) => {
+      if (entry.isIntersecting && !pausedByUser) play()
+      else if (!entry.isIntersecting) demoVideo.pause()
+    },
+    { threshold: 0.35 }
+  ).observe(demoVideo)
+
+  demoToggle.addEventListener('click', () => {
+    pausedByUser = !demoVideo.paused
+    if (pausedByUser) demoVideo.pause()
+    else play()
+  })
+}
 
 // ---------- downloads ----------
 
